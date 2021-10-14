@@ -271,6 +271,9 @@ class T5Stack(T5PreTrainedModel):
             task_embedding = self.task_embedding_controller(task)
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
+        if task_embedding is None and self.train_adapters and not self.is_decoder:
+            task_embedding = self.task_embedding_controller(task)
+
         if input_ids is not None and inputs_embeds is not None:
             err_msg_prefix = "decoder_" if self.is_decoder else ""
             raise ValueError(

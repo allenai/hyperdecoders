@@ -105,11 +105,6 @@ class T5ModelWithAdapter(T5Model):
     def __init__(self, config: T5Config):
         super().__init__(config)
 
-        self.param_gen = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
-        self.param_gen_decoder = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
-        self.init_state = nn.Parameter(torch.randn(config.hidden_size))
-        self.mlp = nn.Sequential(nn.Linear(config.d_model, config.d_model), nn.ReLU(), nn.Linear(config.d_model, config.d_model), nn.ReLU())
-
         encoder_config = copy.deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
@@ -153,9 +148,6 @@ class T5ModelWithAdapter(T5Model):
 
         # Encode if needed (training, first prediction pass)
         if encoder_outputs is None:
-            # generate params.
-            #generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
-            #self.encoder.apply_params_to_adapters(input_ids.size(0), generated_params)
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
@@ -185,10 +177,6 @@ class T5ModelWithAdapter(T5Model):
                 attention_mask = attention_mask.to(self.decoder.first_device)
             if decoder_attention_mask is not None:
                 decoder_attention_mask = decoder_attention_mask.to(self.decoder.first_device)
-        # pool and generate decoder adapters
-        #x = self.mlp(hidden_states).mean(dim=1) # mean over sentence
-        #self.decoder.apply_params_to_adapters(hidden_states.size(0), self.param_gen_decoder(x))
-
         # Decode
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
