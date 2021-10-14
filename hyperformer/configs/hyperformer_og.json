@@ -1,8 +1,8 @@
 {
-"model_name_or_path": "outputs/hyperformer/checkpoint-42000",
+"model_name_or_path": "outputs/hyperformer_og/checkpoint-64000",
 "tokenizer_name": "t5-base",
 "learning_rate": 3e-4,
-"output_dir": "outputs/hyperformer/checkpoint-42000",
+"output_dir": "outputs/hyperformer_og/checkpoint-64000",
 "max_source_length": 128,
 "max_target_length": 128 ,
 "val_max_target_length":128,
@@ -21,7 +21,7 @@
 "temperature": 10,
 "do_train": false,
 "do_test": true,
-"do_eval":false,
+"do_eval": false,
 "predict_with_generate": true,
 "task_embedding_dim": 512,
 "split_validation_test": true,
@@ -35,7 +35,7 @@
 
 "tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola"], 
 "eval_tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola"], 
-"train_adapters": false,
+"train_adapters": true,
 "reduction_factor": 32, 
 "projected_task_embedding_dim": 64, 
 "task_embedding_dim": 64, 
@@ -45,6 +45,7 @@
 "unique_hyper_net": true,
 "adapter_config_name": "meta-adapter"
 }
+
 
 
 

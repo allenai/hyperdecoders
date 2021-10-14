@@ -207,7 +207,7 @@ class T5Trainer(Trainer):
         loss, _ = self._compute_loss(model, inputs, labels)
         return loss
 
-    def evaluate(self, eval_datasets: Optional[Dict[str, Dataset]] = None) -> Dict[str, float]:
+    def evaluate(self, eval_datasets: Optional[Dict[str, Dataset]] = None, ignore_keys=None) -> Dict[str, float]:
         """
         Run evaluation and returns metrics.
 
@@ -261,6 +261,7 @@ class T5Trainer(Trainer):
         # Computes the average metrics across all the tasks without their corresponding losses.
         metrics = [results[key] for key in results.keys() if "loss" not in key]
         results['eval_average_metrics'] = np.mean(metrics)
+        print( results['eval_average_metrics'], '<----')
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, results)
         return results
 
@@ -365,6 +366,8 @@ class T5Trainer(Trainer):
             if train_dataset_is_sized
             else total_train_batch_size * self.args.max_steps
         )
+
+        self._total_loss_scalar = 0.0
 
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", num_examples)
@@ -483,13 +486,13 @@ class T5Trainer(Trainer):
                     self.state.epoch = epoch + (step + 1) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(self.args, self.state, self.control)
 
-                    self._maybe_log_save_evaluate(tr_loss, model, trial, epoch)
+                    self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, None)
 
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break
 
             self.control = self.callback_handler.on_epoch_end(self.args, self.state, self.control)
-            self._maybe_log_save_evaluate(tr_loss, model, trial, epoch)
+            self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, None)
 
             if self.args.tpu_metrics_debug or self.args.debug:
                 if is_torch_tpu_available():
@@ -532,7 +535,7 @@ class T5Trainer(Trainer):
 
     def prediction_step(
             self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]],
-            prediction_loss_only: bool
+            prediction_loss_only: bool, ignore_keys = None
     ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Perform an evaluation step on :obj:`model` using obj:`inputs`.
@@ -560,9 +563,9 @@ class T5Trainer(Trainer):
             "max_length": self.config.max_length,
             "num_beams": self.config.num_beams
         }
-        gen_kwargs["task"] = inputs["task"]
-        gen_kwargs["task_embedding"] = model.task_embedding_controller(inputs["task"]) if \
-            (self.config.train_adapters and isinstance(self.adapter_config, MetaAdapterConfig)) else None
+        #gen_kwargs["task"] = inputs["task"]
+        #gen_kwargs["task_embedding"] = model.task_embedding_controller(inputs["task"]) if \
+        #    (self.config.train_adapters and isinstance(self.adapter_config, MetaAdapterConfig)) else None
         if self.args.predict_with_generate and not self.args.prediction_loss_only:
             generated_tokens = self.model.generate(
                 inputs["input_ids"],

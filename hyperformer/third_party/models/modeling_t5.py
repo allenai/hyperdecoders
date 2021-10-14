@@ -6,11 +6,11 @@ import warnings
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers.modeling_outputs import BaseModelOutput
-from transformers.modeling_t5 import (T5PreTrainedModel, T5LayerNorm, T5Block,
+from transformers.models.t5.modeling_t5 import (T5PreTrainedModel, T5LayerNorm, T5Block,
                                       T5DenseReluDense, T5Attention, T5LayerCrossAttention)
 from transformers.utils import logging
 
-from hyperformer.adapters import (AutoAdapterController, MetaAdapterConfig,
+from adapters import (AutoAdapterController, MetaAdapterConfig,
                               TaskEmbeddingController, LayerNormHyperNet,
                               AdapterLayersHyperNetController,
                               MetaLayersAdapterController,
@@ -57,7 +57,6 @@ class T5LayerSelfAttention(nn.Module):
         super().__init__()
         self.SelfAttention = T5Attention(
             config, has_relative_attention_bias=has_relative_attention_bias,
-            is_bidirectional=not config.is_decoder
         )
         self.train_adapters = config.train_adapters
         if self.train_adapters:
@@ -78,7 +77,7 @@ class T5LayerSelfAttention(nn.Module):
             hidden_states,
             attention_mask=None,
             position_bias=None,
-            head_mask=None,
+            layer_head_mask=None,
             past_key_value=None,
             use_cache=False,
             output_attentions=False,
@@ -91,7 +90,7 @@ class T5LayerSelfAttention(nn.Module):
             norm_x,
             mask=attention_mask,
             position_bias=position_bias,
-            head_mask=head_mask,
+            layer_head_mask=layer_head_mask,
             past_key_value=past_key_value,
             use_cache=use_cache,
             output_attentions=output_attentions,
@@ -116,8 +115,7 @@ class T5Block(nn.Module):
                                                has_relative_attention_bias=has_relative_attention_bias,
                                                adapter_config=self.adapter_config))
         if self.is_decoder:
-            self.layer.append(T5LayerCrossAttention(config, \
-                                                    has_relative_attention_bias=has_relative_attention_bias))
+            self.layer.append(T5LayerCrossAttention(config))
         self.layer.append(T5LayerFF(config, self.adapter_config))
 
     def forward(
@@ -128,7 +126,8 @@ class T5Block(nn.Module):
             encoder_hidden_states=None,
             encoder_attention_mask=None,
             encoder_decoder_position_bias=None,
-            head_mask=None,
+            layer_head_mask=None,
+            cross_attn_layer_head_mask=None,
             past_key_value=None,
             use_cache=False,
             output_attentions=False,
@@ -159,7 +158,7 @@ class T5Block(nn.Module):
             hidden_states,
             attention_mask=attention_mask,
             position_bias=position_bias,
-            head_mask=head_mask,
+            layer_head_mask=layer_head_mask,
             past_key_value=self_attn_past_key_value,
             use_cache=use_cache,
             output_attentions=output_attentions,
@@ -182,10 +181,10 @@ class T5Block(nn.Module):
 
             cross_attention_outputs = self.layer[1](
                 hidden_states,
-                kv=encoder_hidden_states,
+                key_value_states=encoder_hidden_states,
                 attention_mask=encoder_attention_mask,
                 position_bias=encoder_decoder_position_bias,
-                head_mask=head_mask,
+                layer_head_mask=cross_attn_layer_head_mask,
                 past_key_value=cross_attn_past_key_value,
                 query_length=query_length,
                 use_cache=use_cache,
@@ -213,7 +212,7 @@ class T5Block(nn.Module):
 
 
 class T5Stack(T5PreTrainedModel):
-    def __init__(self, config, embed_tokens=None, adapter_config=None):
+    def __init__(self, config, embed_tokens=None, adapter_config=None,  task_embed_controller=None):
         super().__init__(config)
         self.adapter_config = adapter_config
         self.embed_tokens = embed_tokens
@@ -234,6 +233,7 @@ class T5Stack(T5PreTrainedModel):
                 self.adapter_layers_hyper_net = AdapterLayersOneHyperNetController(adapter_config, config.num_layers)
         self.final_layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
+        self.task_embedding_controller = task_embed_controller
         self.init_weights()
 
     def get_input_embeddings(self):
@@ -253,6 +253,7 @@ class T5Stack(T5PreTrainedModel):
             encoder_attention_mask=None,
             inputs_embeds=None,
             head_mask=None,
+            cross_attn_head_mask=None,
             past_key_values=None,
             use_cache=None,
             output_attentions=None,
@@ -266,6 +267,8 @@ class T5Stack(T5PreTrainedModel):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
+        if task_embedding is None and self.train_adapters and not self.is_decoder:
+            task_embedding = self.task_embedding_controller(task)
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if input_ids is not None and inputs_embeds is not None:
@@ -318,6 +321,7 @@ class T5Stack(T5PreTrainedModel):
 
         # Prepare head mask if needed
         head_mask = self.get_head_mask(head_mask, self.config.num_layers)
+        cross_attn_head_mask = self.get_head_mask(cross_attn_head_mask, self.config.num_layers)
         present_key_value_states = () if use_cache else None
         all_hidden_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
@@ -342,7 +346,8 @@ class T5Stack(T5PreTrainedModel):
                 encoder_hidden_states=encoder_hidden_states,
                 encoder_attention_mask=encoder_extended_attention_mask,
                 encoder_decoder_position_bias=encoder_decoder_position_bias,
-                head_mask=head_mask[i],
+                layer_head_mask=head_mask[i],
+                cross_attn_layer_head_mask=cross_attn_head_mask[i],
                 past_key_value=past_key_value,
                 use_cache=use_cache,
                 output_attentions=output_attentions,
@@ -418,13 +423,14 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         encoder_config.is_encoder_decoder = False
         if config.train_adapters:
             encoder_config.train_adapters = True
-        self.encoder = T5Stack(encoder_config, self.shared, adapter_config=adapter_config)
+        self.encoder = T5Stack(encoder_config, self.shared, adapter_config=adapter_config, task_embed_controller=self.task_embedding_controller)
         decoder_config = copy.deepcopy(config)
         decoder_config.is_decoder = True
         decoder_config.is_encoder_decoder = False
         decoder_config.num_layers = config.num_decoder_layers
         self.decoder = T5Stack(decoder_config, self.shared, adapter_config=adapter_config)
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        self.model_parallel = False
         self.init_weights()
 
     def get_input_embeddings(self):
@@ -453,6 +459,8 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             encoder_outputs=None,
             past_key_values=None,
             head_mask=None,
+                    decoder_head_mask=None,
+        cross_attn_head_mask=None,
             inputs_embeds=None,
             decoder_inputs_embeds=None,
             labels=None,
@@ -517,6 +525,12 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             past_key_values = kwargs.pop("decoder_past_key_values")
         assert kwargs == {}, f"Unexpected keyword arguments: {list(kwargs.keys())}."
 
+        if head_mask is not None and decoder_head_mask is None:
+            if self.config.num_layers == self.config.num_decoder_layers:
+                warnings.warn(__HEAD_MASK_WARNING_MSG, FutureWarning)
+                decoder_head_mask = head_mask
+
+
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -564,7 +578,8 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             past_key_values=past_key_values,
             encoder_hidden_states=hidden_states,
             encoder_attention_mask=attention_mask,
-            head_mask=head_mask,
+            head_mask=decoder_head_mask,
+            cross_attn_head_mask=cross_attn_head_mask,
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,

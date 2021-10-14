@@ -32,6 +32,7 @@ class T5LayerFFWithAdapter(T5LayerFF):
         self.hidden_act = ACT2FN[config.feed_forward_proj]
 
     def adapter_down(self, x):
+        #print(x.size(), self.adapter_down_weight.size())
         return (x @ self.adapter_down_weight) + self.adapter_down_bias.unsqueeze(1)
 
     def adapter_up(self, x):
@@ -62,6 +63,26 @@ class T5StackWithAdapter(T5Stack):
         self.block = torch.nn.ModuleList(
             [T5BlockWithAdapter(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
         )
+        self.param_gen = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
+        self.param_gen_decoder = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
+        self.init_state = nn.Parameter(torch.randn(config.hidden_size))
+        self.mlp = nn.Sequential(nn.Linear(config.d_model, config.d_model), nn.ReLU(), nn.Linear(config.d_model, config.d_model), nn.ReLU())
+
+    def forward(
+        self,
+        input_ids=None,
+        encoder_hidden_states=None,
+        **kwargs,
+    ):
+        # using input idsd to determine whats going
+        if self.is_decoder:
+            x = self.mlp(encoder_hidden_states).mean(dim=1) # mean over sentence
+            self.apply_params_to_adapters(encoder_hidden_states.size(0), self.param_gen_decoder(x))
+        else:
+            generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
+            self.apply_params_to_adapters(input_ids.size(0), generated_params)
+        return super().forward(input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs)
+
 
     def apply_params_to_adapters(self, batch_size, generated_params):
         hidden_size = self.config.hidden_size
@@ -133,8 +154,8 @@ class T5ModelWithAdapter(T5Model):
         # Encode if needed (training, first prediction pass)
         if encoder_outputs is None:
             # generate params.
-            generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
-            self.encoder.apply_params_to_adapters(input_ids.size(0), generated_params)
+            #generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
+            #self.encoder.apply_params_to_adapters(input_ids.size(0), generated_params)
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
@@ -165,8 +186,8 @@ class T5ModelWithAdapter(T5Model):
             if decoder_attention_mask is not None:
                 decoder_attention_mask = decoder_attention_mask.to(self.decoder.first_device)
         # pool and generate decoder adapters
-        x = self.mlp(hidden_states).mean(dim=1) # mean over sentence
-        self.decoder.apply_params_to_adapters(input_ids.size(0), self.param_gen_decoder(x))
+        #x = self.mlp(hidden_states).mean(dim=1) # mean over sentence
+        #self.decoder.apply_params_to_adapters(hidden_states.size(0), self.param_gen_decoder(x))
 
         # Decode
         decoder_outputs = self.decoder(
@@ -256,8 +277,8 @@ class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):
         # Encode if needed (training, first prediction pass)
         if encoder_outputs is None:
              # generate params.
-            generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
-            self.encoder.apply_params_to_adapters(input_ids.size(0), generated_params)
+            #generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
+            #self.encoder.apply_params_to_adapters(input_ids.size(0), generated_params)
             # Convert encoder inputs in embeddings if needed
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
@@ -296,8 +317,8 @@ class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):
                 decoder_attention_mask = decoder_attention_mask.to(self.decoder.first_device)
 
         # pool and generate decoder adapters
-        x = self.mlp(hidden_states).mean(dim=1) # mean over sentence
-        self.decoder.apply_params_to_adapters(input_ids.size(0), self.param_gen_decoder(x))
+        #x = self.mlp(hidden_states).mean(dim=1) # mean over sentence
+        #self.decoder.apply_params_to_adapters(hidden_states.size(0), self.param_gen_decoder(x))
         # Decode
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
