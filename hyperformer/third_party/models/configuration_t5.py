@@ -1,6 +1,6 @@
 """T5 model congfiguration"""
 
-from transformers.configuration_t5 import T5Config
+from transformers.models.t5.configuration_t5 import T5Config
 
 
 class T5Config(T5Config):

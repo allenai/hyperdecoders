@@ -5,7 +5,7 @@ import scipy
 import math
 import sklearn
 from logging import getLogger
-from hyperformer.third_party.utils import calculate_rouge, calculate_bleu, lmap
+from third_party.utils import calculate_rouge, calculate_bleu, lmap
 from transformers import EvalPrediction, PreTrainedTokenizer
 from typing import Callable, Dict, List, Tuple
 

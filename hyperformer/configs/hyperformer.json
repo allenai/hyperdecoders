@@ -35,7 +35,7 @@
 
 "tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola"], 
 "eval_tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola"], 
-"train_adapters": true,
+"train_adapters": false,
 "reduction_factor": 32, 
 "projected_task_embedding_dim": 64, 
 "task_embedding_dim": 64, 

@@ -12,7 +12,7 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from transformers import PreTrainedModel, logging
 from transformers import Trainer
-from transformers.configuration_fsmt import FSMTConfig
+from transformers import FSMTConfig
 from transformers.file_utils import is_torch_tpu_available
 from transformers.integrations import (hp_params)
 from transformers.optimization import (
@@ -52,9 +52,9 @@ if is_torch_tpu_available():
 from typing import Any, Dict, Optional, Tuple, Union
 from torch.utils.data.dataset import Dataset
 
-from hyperformer.adapters import MetaAdapterConfig
-from hyperformer.utils import use_task_specific_params, reset_config
-from hyperformer.data import MultiTaskBatchSampler
+from adapters import MetaAdapterConfig
+from utils import use_task_specific_params, reset_config
+from data import MultiTaskBatchSampler
 
 logger = logging.get_logger(__name__)
 
@@ -105,7 +105,7 @@ class T5Trainer(Trainer):
             self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=self.config.pad_token_id)
         else:
             # dynamically import label_smoothed_nll_loss
-            from hyperformer.third_party.utils import label_smoothed_nll_loss
+            from third_party.utils import label_smoothed_nll_loss
 
             self.loss_fn = label_smoothed_nll_loss
 

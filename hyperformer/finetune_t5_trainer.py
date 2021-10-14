@@ -9,15 +9,15 @@ from pathlib import Path
 from transformers import AutoTokenizer, HfArgumentParser, set_seed
 from transformers.trainer_utils import EvaluationStrategy
 
-from hyperformer.third_party.models import T5Config, T5ForConditionalGeneration
-from hyperformer.third_party.trainers import T5Trainer
-from hyperformer.adapters import AdapterController, AutoAdapterConfig
-from hyperformer.data import AutoTask
-from hyperformer.third_party.utils import TaskCollator, check_output_dir
-from hyperformer.metrics import build_compute_metrics_fn
-from hyperformer.training_args import Seq2SeqTrainingArguments, ModelArguments, DataTrainingArguments, \
+from adapter_t5 import T5WithAdapterConfig, T5ForConditionalGenerationWithAdapter
+from third_party.trainers import T5Trainer
+from adapters import AdapterController, AutoAdapterConfig
+from data import AutoTask
+from third_party.utils import TaskCollator, check_output_dir
+from metrics import build_compute_metrics_fn
+from training_args import Seq2SeqTrainingArguments, ModelArguments, DataTrainingArguments, \
     AdapterTrainingArguments
-from hyperformer.utils import freezing_params, get_last_checkpoint_path, create_dir,\
+from utils import freezing_params, get_last_checkpoint_path, create_dir,\
     handle_metrics, get_training_args
 
 logger = logging.getLogger(__name__)
@@ -77,50 +77,51 @@ def main():
     # Distributed training:
     # The .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
-    config = T5Config.from_pretrained(
+    config = T5WithAdapterConfig.from_pretrained(
         model_args.config_name if model_args.config_name else \
             model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
+    print(config)
     extra_model_params = ("encoder_layerdrop", "decoder_layerdrop", "dropout",
                           "attention_dropout",  "train_adapters")
-    for p in extra_model_params:
-        if getattr(training_args, p, None):
-            assert hasattr(config, p), f"({config.__class__.__name__}) doesn't have a `{p}` attribute"
-            setattr(config, p, getattr(training_args, p))
+    #for p in extra_model_params:
+    #    if getattr(training_args, p, None):
+    #        assert hasattr(config, p), f"({config.__class__.__name__}) doesn't have a `{p}` attribute"
+    #        setattr(config, p, getattr(training_args, p))
 
     # Gets the adapter config and updates the specified parameters.
-    if training_args.train_adapters:
-        adapter_config = AutoAdapterConfig.get(adapter_args.adapter_config_name)
-        adapter_config.input_dim = config.d_model
-        adapter_config.tasks = data_args.tasks
-        adapter_config.task_to_adapter = {task:adapter for task, adapter in zip(data_args.tasks, data_args.adapters)} if data_args.adapters is not None else None
-        # If this is a parametric task embedding this mapping makes sense, but in case we use any task embeddings,
-        # then, we do not need any mapping as we use the pretrained task embeddings.
-        adapter_config.task_to_embeddings = {task:embedding for task, embedding in zip(data_args.tasks, data_args.task_embeddings)}\
-             if (data_args.task_embeddings is not None) else None
-        extra_adapter_params = ("task_embedding_dim",
-                                "add_layer_norm_before_adapter",
-                                "add_layer_norm_after_adapter",
-                                "reduction_factor",
-                                "hidden_dim",
-                                "non_linearity",
-                                "train_task_embeddings",
-                                "projected_task_embedding_dim",
-                                "task_hidden_dim",
-                                "conditional_layer_norm",
-                                "train_adapters_blocks",
-                                "unique_hyper_net",
-                                "unique_hyper_net_layer_norm",
-                                "efficient_unique_hyper_net")
-        for p in extra_adapter_params:
-            if hasattr(adapter_args, p) and hasattr(adapter_config, p):
-                setattr(adapter_config, p, getattr(adapter_args, p))
-            else:
-                logger.warning(f"({adapter_config.__class__.__name__}) doesn't have a `{p}` attribute")
-        adapter_config.device = training_args.device
-    else:
-        adapter_config = None
+    #if training_args.train_adapters:
+    #    adapter_config = AutoAdapterConfig.get(adapter_args.adapter_config_name)
+    #    adapter_config.input_dim = config.d_model
+    #    adapter_config.tasks = data_args.tasks
+    #    adapter_config.task_to_adapter = {task:adapter for task, adapter in zip(data_args.tasks, data_args.adapters)} if data_args.adapters is not None else None
+    #    # If this is a parametric task embedding this mapping makes sense, but in case we use any task embeddings,
+    #    # then, we do not need any mapping as we use the pretrained task embeddings.
+    #    adapter_config.task_to_embeddings = {task:embedding for task, embedding in zip(data_args.tasks, data_args.task_embeddings)}\
+    #         if (data_args.task_embeddings is not None) else None
+    #    extra_adapter_params = ("task_embedding_dim",
+    #                            "add_layer_norm_before_adapter",
+    #                            "add_layer_norm_after_adapter",
+    #                            "reduction_factor",
+    #                            "hidden_dim",
+    #                            "non_linearity",
+    #                            "train_task_embeddings",
+    #                            "projected_task_embedding_dim",
+    #                            "task_hidden_dim",
+    #                            "conditional_layer_norm",
+    #                            "train_adapters_blocks",
+    #                            "unique_hyper_net",
+    #                            "unique_hyper_net_layer_norm",
+    #                            "efficient_unique_hyper_net")
+    #    for p in extra_adapter_params:
+    #        if hasattr(adapter_args, p) and hasattr(adapter_config, p):
+    #            setattr(adapter_config, p, getattr(adapter_args, p))
+    #        else:
+    #            logger.warning(f"({adapter_config.__class__.__name__}) doesn't have a `{p}` attribute")
+    #    adapter_config.device = training_args.device
+    #else:
+    #    adapter_config = None
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else \
@@ -128,18 +129,17 @@ def main():
         cache_dir=model_args.cache_dir,
     )
     if model_args.not_load_t5_checkpoint:
-        model = T5ForConditionalGeneration(config=config, adapter_config=adapter_config)
+        model = T5ForConditionalGenerationWithAdapter(config=config)
     else:
         last_checkpoint_path = training_args.output_dir
         model_path = model_args.model_name_or_path if ((training_args.optimize_from_scratch and not training_args.optimize_from_scratch_with_loading_model) or not os.path.exists(os.path.join(last_checkpoint_path, 'pytorch_model.bin')))\
             else last_checkpoint_path
         logger.warning("model path loaded from : %s", model_path)
-        model = T5ForConditionalGeneration.from_pretrained(
+        model = T5ForConditionalGenerationWithAdapter.from_pretrained(
             model_path,
             from_tf=".ckpt" in model_args.model_name_or_path,
             config=config,
             cache_dir=model_args.cache_dir,
-            adapter_config=adapter_config
         )
 
     # set num_beams for evaluation
@@ -149,6 +149,10 @@ def main():
     # freezing the parameters.
     if training_args.do_train:
         freezing_params(model, training_args, model_args, adapter_args)
+
+    for name, p in model.named_parameters():
+        if 'param_gen' not in name.lower() and 'mlp' not in name.lower():
+            p.requires_grad = False
 
     if training_args.print_num_parameters:
         logger.info(model)
@@ -198,11 +202,10 @@ def main():
         multi_task_compute_metrics=compute_metrics_fn,
         data_args=data_args,
         dataset_sizes=dataset_sizes if training_args.do_train else None,
-        adapter_config=adapter_config
     )
-    if trainer.is_world_process_zero():
-        arguments = get_training_args([model_args, data_args, training_args, adapter_args])
-        handle_metrics("arguments", arguments, training_args.output_dir)
+    #if trainer.is_world_process_zero():
+    #    arguments = get_training_args([model_args, data_args, training_args, adapter_args])
+    #    #handle_metrics("arguments", arguments, training_args.output_dir)
 
     # Trains the model.
     if training_args.do_train:
@@ -241,15 +244,14 @@ def main():
             # set save_total = 1 so the best model is loaded here.
             # if not exists returns the path to the output_dir.
             last_checkpoint_path = get_last_checkpoint_path(training_args.output_dir)
-            config = T5Config.from_pretrained(
+            config = T5WithAdapterConfig.from_pretrained(
                 last_checkpoint_path,
                 cache_dir=model_args.cache_dir)
-            model = T5ForConditionalGeneration.from_pretrained(
+            model = T5ForConditionalGenerationWithAdapter.from_pretrained(
                 last_checkpoint_path,
                 from_tf=".ckpt" in training_args.output_dir,
                 config=config,
                 cache_dir=model_args.cache_dir,
-                adapter_config=adapter_config
             )
             # NOTE: if trainer is not re-defined, there is a bug in the codes, that making
             # huggingface codes does not using the best checkpoint.
@@ -264,7 +266,6 @@ def main():
                 multi_task_compute_metrics=compute_metrics_fn,
                 data_args=data_args,
                 dataset_sizes=dataset_sizes if training_args.do_train else None,
-                adapter_config=adapter_config
             )
 
         if training_args.train_adapters:
@@ -277,15 +278,15 @@ def main():
 
     if training_args.do_eval:
         metrics = trainer.evaluate()
-        if trainer.is_world_process_zero():
-            handle_metrics("val", metrics, training_args.output_dir)
-            all_metrics.update(metrics)
+        #if trainer.is_world_process_zero():
+        #    handle_metrics("val", metrics, training_args.output_dir)
+        #    all_metrics.update(metrics)
 
     if training_args.do_test:
         metrics = trainer.evaluate(test_dataset)
-        if trainer.is_world_process_zero():
-            handle_metrics("test", metrics, training_args.output_dir)
-            all_metrics.update(metrics)
+        #if trainer.is_world_process_zero():
+        #    handle_metrics("test", metrics, training_args.output_dir)
+        #    all_metrics.update(metrics)
 
     if torch.cuda.is_available() and training_args.compute_memory:
         peak_memory = torch.cuda.max_memory_allocated()/1024**2

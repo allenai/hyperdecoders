@@ -8,7 +8,7 @@ import functools
 import logging
 import numpy as np
 import torch
-from hyperformer.metrics import metrics
+from metrics import metrics
 from typing import Callable, Dict, Mapping, List
 
 from .utils import round_stsb_target, compute_task_max_decoding_length

@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from hyperformer.adapters import ADAPTER_CONFIG_MAPPING
+from adapters import ADAPTER_CONFIG_MAPPING
 from transformers import TrainingArguments
 from transformers.optimization import (
     get_constant_schedule,

@@ -2,16 +2,16 @@ import glob
 import os
 from dataclasses import asdict
 from logging import getLogger
-from hyperformer.third_party.utils import (
+from third_party.utils import (
     assert_all_frozen,
     freeze_embeds,
     freeze_params,
     save_json)
-from transformers.modeling_t5 import T5LayerNorm
+from transformers.models.t5.modeling_t5 import T5LayerNorm
 
-from hyperformer.adapters import (AdapterController, MetaAdapterController, 
+from adapters import (AdapterController, MetaAdapterController, 
                               AdapterLayersHyperNetController, AdapterLayersOneHyperNetController)
-from hyperformer.data import TASK_MAPPING
+from data import TASK_MAPPING
 
 logger = getLogger(__name__)
 
@@ -109,25 +109,6 @@ def freezing_params(model, training_args, model_args, adapter_args):
     """
     # If we are training adapters, we freeze all parameters except the
     # parameters of computing task embeddings and adapter controllers.
-    if training_args.train_adapters:
-        freeze_params(model)
-        for name, sub_module in model.named_modules():
-            if isinstance(sub_module, (MetaAdapterController, AdapterController)):
-                for param_name, param in sub_module.named_parameters():
-                    param.requires_grad = True
-        if adapter_args.adapter_config_name == "meta-adapter":
-            for param in model.task_embedding_controller.parameters():
-                param.requires_grad = True
-        if adapter_args.unique_hyper_net:
-            for name, sub_module in model.named_modules():
-                if isinstance(sub_module, (AdapterLayersHyperNetController, AdapterController)):
-                    for param_name, param in sub_module.named_parameters():
-                        param.requires_grad = True
-        if adapter_args.efficient_unique_hyper_net:
-            for name, sub_module in model.named_modules():
-                if isinstance(sub_module, (AdapterLayersOneHyperNetController)):
-                    for param_name, param in sub_module.named_parameters():
-                        param.requires_grad = True
     if model_args.freeze_model:
         freeze_params(model)
 
