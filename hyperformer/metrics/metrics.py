@@ -1,4 +1,5 @@
 """Defines different metrics used for evaluation of tasks."""
+from collections import defaultdict
 import functools
 import numpy as np
 import scipy
@@ -8,6 +9,7 @@ from logging import getLogger
 from third_party.utils import calculate_rouge, calculate_bleu, lmap
 from transformers import EvalPrediction, PreTrainedTokenizer
 from typing import Callable, Dict, List, Tuple
+from squad_scoring import f1_score, exact_match_score
 
 logger = getLogger(__name__)
 
@@ -71,6 +73,14 @@ def f1_score_with_invalid(predictions, targets) -> dict:
 def matthews_corrcoef(predictions, targets) -> dict:
     """Computes the Matthews correlation coefficient."""
     return {"mcc": 100 * sklearn.metrics.matthews_corrcoef(targets, predictions)}
+
+def squad_metrics(predictions, targets) -> dict:
+    d = defaultdict(list)
+    for p, t in zip(predictions, targets):
+        d["f1"].append(f1_score(p, t))
+        d["em"].append(exact_match_score(p, t))
+    from statistics import mean
+    return  { "f1": mean(d["f1"]), "em": mean(d['em'])}
 
 
 def build_compute_metrics_fn(task_names: List[str],

@@ -730,6 +730,18 @@ class CommonsenseQaTaskDataset(AbstractTaskDataset):
         tgt_texts = [str(self.label_map[example['answerKey']])]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
 
+class SquadDataset(AbstractTaskDataset):
+    name = "squad"
+    task_specific_config = {'max_length': 16} # based on 't5 on tpu' notebook, nothing special.
+    split_to_data_split = {"train": "train",
+                           "validation": "validation",
+                           "test": "validation"}
+    metrics = [metrics.squad_metrics]
+
+    def preprocessor(self, example, add_prefix=True):
+        src_texts = ["question:", example["question"], "context:", example["context"]]
+        tgt_texts = [str(example["answers"]["text"][0])]
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
 
 TASK_MAPPING = OrderedDict([
     ('superglue-boolq', SuperGLUEBoolQTaskDataset),
@@ -763,7 +775,8 @@ TASK_MAPPING = OrderedDict([
     ('winogrande', WinograndeTaskDataset),
     ('hellaswag', HellaSwagTaskDataset),
     ('commonsense_qa', CommonsenseQaTaskDataset),
-    ('sick', SickTaskDataset)]
+    ('sick', SickTaskDataset),
+    ('squad', SquadDataset)]
 )
 
 
