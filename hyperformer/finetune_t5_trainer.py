@@ -167,7 +167,8 @@ def main():
     dataset_class = AutoTask
     if training_args.do_train:
         train_datasets = [dataset_class.get(task, seed=data_args.data_seed).get_dataset(
-            split="train", n_obs=data_args.n_train, add_prefix=False if training_args.train_adapters else True)
+            split="train", n_obs=data_args.n_train, add_prefix=False if training_args.train_adapters else True,
+            split_validation_test=training_args.split_validation_test)
             for task in data_args.tasks]
         dataset_sizes = [len(train_dataset) for train_dataset in train_datasets]
         train_dataset = datasets.concatenate_datasets(train_datasets)

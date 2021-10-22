@@ -9,7 +9,7 @@ from logging import getLogger
 from third_party.utils import calculate_rouge, calculate_bleu, lmap
 from transformers import EvalPrediction, PreTrainedTokenizer
 from typing import Callable, Dict, List, Tuple
-from squad_scoring import f1_score, exact_match_score
+from metrics.squad_scoring import f1_score, exact_match_score
 
 logger = getLogger(__name__)
 
