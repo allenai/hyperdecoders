@@ -23,8 +23,21 @@ class T5LayerSelfAttentionWithAdapter(T5LayerSelfAttention):
     def __init__(self, config, has_relative_attention_bias=False):
         super().__init__(config, has_relative_attention_bias=has_relative_attention_bias)
         self.hidden_act = ACT2FN['relu']
-        self.adapter_up = nn.Linear(config.adapter_dim, config.hidden_size)
-        self.adapter_down = nn.Linear(config.hidden_size, config.adapter_dim)
+        self.adapter_dim = config.adapter_dim
+        self.adapter_down_weight = torch.zeros(config.hidden_size, self.adapter_dim)
+        self.adapter_down_bias = torch.zeros(1, 1, self.adapter_dim)
+
+        self.adapter_up_weight = torch.zeros(self.adapter_dim, config.hidden_size)
+        self.adapter_up_bias = torch.zeros(1, 1, config.hidden_size)
+        #self.adapter_up = nn.Linear(config.adapter_dim, config.hidden_size)
+        #self.adapter_down = nn.Linear(config.hidden_size, config.adapter_dim)
+
+    def adapter_down(self, x):
+        #print(x.size(), self.adapter_down_weight.size())
+        return (x @ self.adapter_down_weight) + self.adapter_down_bias.unsqueeze(1)
+
+    def adapter_up(self, x):
+        return (x @ self.adapter_up_weight) + self.adapter_up_bias.unsqueeze(1)
 
     def forward(
         self,
@@ -46,8 +59,8 @@ class T5LayerFFWithAdapter(T5LayerFF):
 
         self.adapter_up_weight = torch.zeros(self.adapter_dim, config.hidden_size)
         self.adapter_up_bias = torch.zeros(1, 1, config.hidden_size)
-        self.adapter_up_tru = nn.Linear(config.adapter_dim, config.hidden_size)
-        self.adapter_down_tru = nn.Linear(config.hidden_size, config.adapter_dim)
+        #self.adapter_up_tru = nn.Linear(config.adapter_dim, config.hidden_size)
+        #self.adapter_down_tru = nn.Linear(config.hidden_size, config.adapter_dim)
         self.hidden_act = ACT2FN['relu']
 
     def adapter_down(self, x):
@@ -59,9 +72,9 @@ class T5LayerFFWithAdapter(T5LayerFF):
 
     def apply_adapter(self, x):
         # downsample, activate, upsample, skip connection
-        y = self.adapter_down_tru(x)
+        y = self.adapter_down(x)
         y = self.hidden_act(y)
-        y = self.adapter_up_tru(y)
+        y = self.adapter_up(y)
         return y + x
 
     def forward(self, hidden_states):
@@ -83,7 +96,9 @@ class T5StackWithAdapter(T5Stack):
             [T5BlockWithAdapter(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
         )
         self.param_gen = ParameterGenerator(config, config.feed_forward_proj)
+        self.param_gen_attn = ParameterGenerator(config, config.feed_forward_proj)
         self.init_state = nn.Parameter(torch.randn(config.hidden_size))
+        self.init_state_attn = nn.Parameter(torch.randn(config.hidden_size))
         self.mlp = nn.Sequential(nn.Linear(config.d_model, config.d_model), nn.ReLU(), nn.Linear(config.d_model, config.d_model), nn.ReLU())
 
     def forward(
@@ -93,21 +108,23 @@ class T5StackWithAdapter(T5Stack):
         **kwargs,
     ):
         # using input idsd to determine whats going
-        if self.is_decoder:
-            x = self.mlp(encoder_hidden_states).mean(dim=1) # mean over sentence
-            self.apply_params_to_adapters(encoder_hidden_states.size(0), self.param_gen(x))
-        else:
-            generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
-            self.apply_params_to_adapters(input_ids.size(0), generated_params)
+        #if self.is_decoder:
+        #    x = self.mlp(encoder_hidden_states).mean(dim=1) # mean over sentence
+        #    self.apply_params_to_adapters(encoder_hidden_states.size(0), self.param_gen(x))
+        #else:
+        generated_params_1 = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
+        self.apply_params_to_adapters(input_ids.size(0), generated_params_1, False)
+        generated_params_2 = self.param_gen_attn(self.init_state_attn.view(1, -1).expand(input_ids.size(0), -1))
+        self.apply_params_to_adapters(input_ids.size(0), generated_params_2, True)
         return super().forward(input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs)
 
 
-    def apply_params_to_adapters(self, batch_size, generated_params):
+    def apply_params_to_adapters(self, batch_size, generated_params, attn):
         hidden_size = self.config.hidden_size
         d_adapter = self.config.adapter_dim
 
         for p, layer in zip(generated_params, self.block):
-            adapter_layer = layer.layer[-1]
+            adapter_layer = layer.layer[0] if attn else layer.layer[-1]
             # dw, db: down weight, down bias
             # uw, ub: up weight, up bias
             uw, dw, ub, db = p
