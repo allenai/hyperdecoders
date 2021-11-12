@@ -2,7 +2,7 @@ import copy
 import warnings
 
 from transformers.models.t5.configuration_t5 import T5Config
-from transformers.models.t5.modeling_t5 import T5Block, T5LayerFF, T5Stack, T5Model, T5ForConditionalGeneration, T5EncoderModel, __HEAD_MASK_WARNING_MSG
+from transformers.models.t5.modeling_t5 import T5Block, T5LayerFF, T5Stack, T5Model, T5ForConditionalGeneration, T5EncoderModel, __HEAD_MASK_WARNING_MSG, T5LayerSelfAttention
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqModelOutput, Seq2SeqLMOutput
 
@@ -16,8 +16,25 @@ from adapter_generators import ParameterGenerator
 class T5WithAdapterConfig(T5Config):
     def __init__(self, train_adapters=False, **kwargs):
         super().__init__(**kwargs)
-        self.adapter_dim = 64
-        self.generator_hdim = self.d_model * 0.25
+        self.adapter_dim = 256
+        self.generator_hdim = 128
+
+class T5LayerSelfAttentionWithAdapter(T5LayerSelfAttention):
+    def __init__(self, config, has_relative_attention_bias=False):
+        super().__init__(config, has_relative_attention_bias=has_relative_attention_bias)
+        self.hidden_act = ACT2FN['relu']
+        self.adapter_up = nn.Linear(config.adapter_dim, config.hidden_size)
+        self.adapter_down = nn.Linear(config.hidden_size, config.adapter_dim)
+
+    def forward(
+        self,
+        hidden_states,
+        **kwargs
+    ):
+        outputs = super().forward(hidden_states, **kwargs)
+        layer_output = outputs[0]
+        adapter_out = layer_output + self.adapter_up(self.hidden_act(self.adapter_down(layer_output)))
+        return (adapter_out,) + outputs[1:]
 
 
 class T5LayerFFWithAdapter(T5LayerFF):
@@ -29,7 +46,9 @@ class T5LayerFFWithAdapter(T5LayerFF):
 
         self.adapter_up_weight = torch.zeros(self.adapter_dim, config.hidden_size)
         self.adapter_up_bias = torch.zeros(1, 1, config.hidden_size)
-        self.hidden_act = ACT2FN[config.feed_forward_proj]
+        self.adapter_up_tru = nn.Linear(config.adapter_dim, config.hidden_size)
+        self.adapter_down_tru = nn.Linear(config.hidden_size, config.adapter_dim)
+        self.hidden_act = ACT2FN['relu']
 
     def adapter_down(self, x):
         #print(x.size(), self.adapter_down_weight.size())
@@ -40,21 +59,21 @@ class T5LayerFFWithAdapter(T5LayerFF):
 
     def apply_adapter(self, x):
         # downsample, activate, upsample, skip connection
-        y = self.adapter_down(x)
+        y = self.adapter_down_tru(x)
         y = self.hidden_act(y)
-        y = self.adapter_up(y)
+        y = self.adapter_up_tru(y)
         return y + x
 
     def forward(self, hidden_states):
         forwarded_states = self.layer_norm(hidden_states)
         forwarded_states = self.dropout(self.DenseReluDense(forwarded_states))
-        forwarded_states = self.apply_adapter(forwarded_states)
-        hidden_states = hidden_states + forwarded_states
+        hidden_states = self.apply_adapter(forwarded_states + hidden_states)
         return hidden_states
 
 class T5BlockWithAdapter(T5Block):
     def __init__(self, config, has_relative_attention_bias=False):
         super().__init__(config, has_relative_attention_bias=has_relative_attention_bias)
+        self.layer[0] = T5LayerSelfAttentionWithAdapter(config, has_relative_attention_bias=has_relative_attention_bias)
         self.layer[-1] = T5LayerFFWithAdapter(config)
 
 class T5StackWithAdapter(T5Stack):
@@ -63,8 +82,7 @@ class T5StackWithAdapter(T5Stack):
         self.block = torch.nn.ModuleList(
             [T5BlockWithAdapter(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
         )
-        self.param_gen = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
-        self.param_gen_decoder = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
+        self.param_gen = ParameterGenerator(config, config.feed_forward_proj)
         self.init_state = nn.Parameter(torch.randn(config.hidden_size))
         self.mlp = nn.Sequential(nn.Linear(config.d_model, config.d_model), nn.ReLU(), nn.Linear(config.d_model, config.d_model), nn.ReLU())
 
@@ -77,7 +95,7 @@ class T5StackWithAdapter(T5Stack):
         # using input idsd to determine whats going
         if self.is_decoder:
             x = self.mlp(encoder_hidden_states).mean(dim=1) # mean over sentence
-            self.apply_params_to_adapters(encoder_hidden_states.size(0), self.param_gen_decoder(x))
+            self.apply_params_to_adapters(encoder_hidden_states.size(0), self.param_gen(x))
         else:
             generated_params = self.param_gen(self.init_state.view(1, -1).expand(input_ids.size(0), -1))
             self.apply_params_to_adapters(input_ids.size(0), generated_params)
@@ -92,10 +110,7 @@ class T5StackWithAdapter(T5Stack):
             adapter_layer = layer.layer[-1]
             # dw, db: down weight, down bias
             # uw, ub: up weight, up bias
-            dw, uw, db, ub = p[:, 0:hidden_size*d_adapter], \
-                            p[:, hidden_size*d_adapter:hidden_size*d_adapter*2], \
-                            p[:, hidden_size*d_adapter*2:hidden_size*d_adapter*2+d_adapter], \
-                            p[:, hidden_size*d_adapter*2+d_adapter:hidden_size*d_adapter*2+d_adapter+hidden_size]
+            uw, dw, ub, db = p
             adapter_layer.adapter_down_weight = dw.view(batch_size, hidden_size, d_adapter)
             adapter_layer.adapter_down_bias = db.view(batch_size, d_adapter)
             adapter_layer.adapter_up_weight = uw.view(batch_size, d_adapter, hidden_size)
@@ -211,12 +226,6 @@ class T5ModelWithAdapter(T5Model):
 class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):
     def __init__(self, config):
         super().__init__(config)
-
-        self.param_gen = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
-        self.param_gen_decoder = ParameterGenerator(config, config.feed_forward_proj, config.d_model)
-        self.init_state = nn.Parameter(torch.randn(config.hidden_size))
-        self.mlp = nn.Sequential(nn.Linear(config.d_model, config.d_model), nn.ReLU(), nn.Linear(config.d_model, config.d_model), nn.ReLU())
-
         encoder_config = copy.deepcopy(config)
         encoder_config.is_decoder = False
         encoder_config.use_cache = False
