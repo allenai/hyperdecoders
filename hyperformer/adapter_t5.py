@@ -64,10 +64,12 @@ class T5LayerFFWithAdapter(T5LayerFF):
         return y + x
 
     def forward(self, hidden_states):
-        forwarded_states = self.layer_norm(hidden_states)
-        forwarded_states = self.dropout(self.DenseReluDense(forwarded_states))
+        normed_hidden_states = self.layer_norm(hidden_states)
+        forwarded_states = self.dropout(self.DenseReluDense(normed_hidden_states))
         if self.config.use_adapters:
-            forwarded_states = self.apply_adapter(forwarded_states)
+            # parallel adapter setup
+            adapter_states = self.apply_adapter(normed_hidden_states)
+            forwarded_states = forwarded_states + adapter_states
         hidden_states = hidden_states + forwarded_states
         return hidden_states
 
