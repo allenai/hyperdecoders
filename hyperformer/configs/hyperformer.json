@@ -1,8 +1,8 @@
 {
-"model_name_or_path": "outputs/hyperformer/checkpoint-42000",
-"tokenizer_name": "t5-base",
+"model_name_or_path": "t5-small",
+"tokenizer_name": "t5-small",
 "learning_rate": 3e-4,
-"output_dir": "outputs/hyperformer/checkpoint-42000",
+"output_dir": "outputs/hyperformer",
 "max_source_length": 128,
 "max_target_length": 128 ,
 "val_max_target_length":128,
@@ -19,31 +19,22 @@
 "logging_steps": 200,
 "save_total_limit": 1,
 "temperature": 10,
-"do_train": false,
+"freeze_parameters": true,
+"do_train": true,
 "do_test": true,
-"do_eval":false,
+"do_eval":true,
 "predict_with_generate": true,
 "task_embedding_dim": 512,
 "split_validation_test": true,
-"non_linearity": "gelu_new",
 "load_best_model_at_end": true,
 "evaluation_strategy": "steps",
 "metric_for_best_model": "average_metrics",
 "greater_is_better": true,
-"max_steps": 65536,
+"max_steps": 1,
+"print_num_parameters": true,
 
-
-"tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola"], 
-"eval_tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola"], 
-"train_adapters": false,
-"reduction_factor": 32, 
-"projected_task_embedding_dim": 64, 
-"task_embedding_dim": 64, 
-"conditional_layer_norm": true,
-"unfreeze_lm_head": false,
-"unfreeze_layer_norms": true, 
-"unique_hyper_net": true,
-"adapter_config_name": "meta-adapter"
+"tasks": ["social_i_qa"], 
+"eval_tasks": ["social_i_qa"]
 }
 
 

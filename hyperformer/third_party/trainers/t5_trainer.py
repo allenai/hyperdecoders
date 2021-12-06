@@ -52,7 +52,6 @@ if is_torch_tpu_available():
 from typing import Any, Dict, Optional, Tuple, Union
 from torch.utils.data.dataset import Dataset
 
-from adapters import MetaAdapterConfig
 from utils import use_task_specific_params, reset_config
 from data import MultiTaskBatchSampler
 
@@ -531,7 +530,7 @@ class T5Trainer(Trainer):
 
         self.control = self.callback_handler.on_train_end(self.args, self.state, self.control)
 
-        return TrainOutput(self.state.global_step, tr_loss.item() / self.state.global_step)
+        return TrainOutput(self.state.global_step, tr_loss.item() / self.state.global_step, None)
 
     def prediction_step(
             self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]],
@@ -564,8 +563,6 @@ class T5Trainer(Trainer):
             "num_beams": self.config.num_beams
         }
         #gen_kwargs["task"] = inputs["task"]
-        #gen_kwargs["task_embedding"] = model.task_embedding_controller(inputs["task"]) if \
-        #    (self.config.train_adapters and isinstance(self.adapter_config, MetaAdapterConfig)) else None
         if self.args.predict_with_generate and not self.args.prediction_loss_only:
             generated_tokens = self.model.generate(
                 inputs["input_ids"],

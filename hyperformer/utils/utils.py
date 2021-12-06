@@ -9,8 +9,6 @@ from third_party.utils import (
     save_json)
 from transformers.models.t5.modeling_t5 import T5LayerNorm
 
-from adapters import (AdapterController, MetaAdapterController, 
-                              AdapterLayersHyperNetController, AdapterLayersOneHyperNetController)
 from data import TASK_MAPPING
 
 logger = getLogger(__name__)
@@ -97,55 +95,11 @@ def reset_config(model, config):
     model.config = config
     logger.info(f"config is reset to the initial values.")
 
+def freeze_model(model):
+    """Freezes the model weights."""
+    freeze_params(model)
 
-def freezing_params(model, training_args, model_args, adapter_args):
-    """
-    Freezes the model parameters based on the given setting in the arguments.
-    Args:
-      model: the given model.
-      training_args: defines the training arguments.
-      model_args: defines the model arguments.
-      adapter_args: defines the adapters arguments.
-    """
-    # If we are training adapters, we freeze all parameters except the
-    # parameters of computing task embeddings and adapter controllers.
-    if model_args.freeze_model:
-        freeze_params(model)
-
-    # Freezes all models parameters except last linear layer of decoder.
-    if model_args.freeze_model_but_lm_head:
-        freeze_params(model)
-        for param in model.lm_head.parameters():
-            param.requires_grad = True
-
-    if model_args.freeze_embeds:
-        freeze_embeds(model)
-
-    if model_args.freeze_encoder:
-        freeze_params(model.get_encoder())
-        assert_all_frozen(model.get_encoder())
-
-    # In case of meta-adapters and if task-embeddings are paramteric,
-    # freezes all parameters except task-embedding parameters.
-    if model_args.freeze_model_but_task_embeddings:
-        freeze_params(model)
-        if adapter_args.adapter_config_name == "meta-adapter" and \
-                not isinstance(model.task_embedding_controller.task_to_embeddings, dict):
-            for param in model.task_embedding_controller.task_to_embeddings.parameters():
-                param.requires_grad = True
-
-    # Unfreezes last linear layer of decoder.
-    if model_args.unfreeze_lm_head:
-        for param in model.lm_head.parameters():
-            param.requires_grad = True
-
-    # Unfreezes layer norms.
-    if model_args.unfreeze_layer_norms:
-        for name, sub_module in model.named_modules():
-            if isinstance(sub_module, T5LayerNorm):
-                for param_name, param in sub_module.named_parameters():
-                    param.requires_grad = True
-
-    if model_args.unfreeze_model:
-        for param in model.parameters():
+def unfreeze_adapter_params(model):
+    for name, param in model.named_parameters():
+        if "adapter" in name or 'mlp' in name or 'param_gen' in name:
             param.requires_grad = True

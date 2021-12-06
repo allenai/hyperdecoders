@@ -2,7 +2,6 @@
 
 import logging
 from dataclasses import dataclass, field
-from adapters import ADAPTER_CONFIG_MAPPING
 from transformers import TrainingArguments
 from transformers.optimization import (
     get_constant_schedule,
@@ -54,9 +53,8 @@ class Seq2SeqTrainingArguments(TrainingArguments):
     )
     temperature: Optional[int] = field(default=1, metadata={"help": "Defines the temperature"
                                                                     "value for sampling across the multiple datasets."})
-    train_adapters: Optional[bool] = field(default=False, metadata={"help":
-                                                                        "Train an adapter instead of the full model."})
     do_test: bool = field(default=False, metadata={"help": "Whether to comptue evaluation metrics on the test sets."})
+    freeze_parameters: bool = field(default=True, metadata={"help": "Freeze model apart from adapters"})
     eval_output_dir: Optional[str] = field(default=None, metadata={
         "help": "The output directory where the evaluation of the model and checkpoints during "
         "evaluation will be written. Would use the original output_dir if not specified."})
@@ -177,38 +175,7 @@ class DataTrainingArguments:
 @dataclass
 class AdapterTrainingArguments:
     """Defines the adapters parameters."""
-    adapter_config_name: Optional[str] = field(
-        default="meta-adapter", metadata={"help": "config name for the adapter layers, should be selected "
-        f"in {sorted(ADAPTER_CONFIG_MAPPING.keys())}."}
-    )
-    task_embedding_dim: Optional[int] = field(default=None, metadata={"help": "task embedding dimensions."})
-    add_layer_norm_before_adapter: Optional[bool] = field(default=False,
-                                                          metadata={
-                                                              "help": "whether to have layer-norm before adapter."})
-    add_layer_norm_after_adapter: Optional[bool] = field(default=True,
-                                                         metadata={"help": "whether to have layer-norm after adapter."})
-    hidden_dim: Optional[int] = field(default=128, metadata={"help": "defines the default hidden dimension for "
-                                                                     "adapter layers."})
-    reduction_factor: Optional[int] = field(default=16, metadata={"help": "defines the default reduction factor for "
-                                                                          "adapter layers."})
-    non_linearity: Optional[str] = field(default="swish", metadata={"help": "Defines nonlinearity for adapter layers."})
-    train_task_embeddings: Optional[bool] = field(default=False, metadata={"help": "If specified learns the tasks "
-                                                                                   "embeddings from given task seedings."})
-    projected_task_embedding_dim: Optional[int] = field(default=64,
-                                                        metadata={"help": "Defines the task embedding dimension"
-                                                                          " after projection layer. "})
-    task_hidden_dim: Optional[int] = field(default=128, metadata={
-        "help": "defines the hidden dimension for task embedding projector."})
-    conditional_layer_norm: Optional[bool] = field(default=False,
-                                                   metadata={"help": "Implements conditional layer norms "
-                                                                     "modulated based on task embeddings."})
-    train_adapters_blocks: bool = field(default=True, metadata={"help": "If set, uses adapter blocks."})
-    unique_hyper_net: bool = field(default=False, metadata={"help": "If set, uses one hyper network"
-                                                                    "to generates the adapter weights"
-                                                                    "for all the layers."})
-    efficient_unique_hyper_net: bool = field(default=False, metadata={"help": "If set, uses one hyper network"
-                                                                              "for all adapters in each layer."})
-    unique_hyper_net_layer_norm: bool = field(default=True, metadata={"help": "If set, applies a layer"
-                                                                              "norm after computing the "
-                                                                              "embeddings for the unique "
-                                                                              "hyper-net."})
+    use_adapters: bool = field(default=True, metadata={"help": "Whether to use adapters."})
+    use_manual_adapters: bool = field(default=False, metadata={"help": "Whether to use non-generated adapters instead of generated ones."})
+    adapter_hidden_param: Optional[int] = field(default=64, metadata={"help": "size of adapters themselves."})
+    hypernetwork_bottleneck: Optional[int] = field(default=130, metadata={"help": "size of hypernetwork bottleneck dim"})

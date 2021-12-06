@@ -9,6 +9,11 @@ from typing import TypeVar, Optional, List
 
 T_co = TypeVar('T_co', covariant=True)
 
+# TODO: edit this for sample styles, or copy the class across a few cases
+# case 1: temperature on task level-based sampling, as currently is
+# case 2: pure mixing everything, no trying to mess w/ dist
+# 
+
 
 class MultiTaskBatchSampler(Sampler[T_co]):
     """Defines a sampler to sample multiple datasets with temperature sampling

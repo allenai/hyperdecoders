@@ -1,18 +1,14 @@
-import torch
-import torch.nn as nn
-from transformers.activations import ACT2FN
 import math
 
-# todo: hidden should use xaiver init
+import torch
+import torch.nn as nn
+
 def linear(i, o):
     l = nn.Linear(i, o)
     nn.init.xavier_uniform_(l.weight)
     nn.init.constant_(l.bias, 0.0)
     return l
 
-# assumptions: using relu and xavier init, and data input has variance 1 (😬)
-# times by a constant to 'init' the generated adapters near 0. This is required
-# for stable training, from og adapter paper.
 def hyperfanin_init_weight(linear_layer, hypernet_in, mainnet_in):
   bound = 1e-3 * math.sqrt(3 / (hypernet_in * mainnet_in))
   nn.init.uniform_(linear_layer.weight, -bound, bound)
@@ -25,21 +21,20 @@ def hyperfanin_init_bias(linear_layer,  hypernet_in):
 
 class SimpleGenerator(nn.Module):
     # takes in a encoded task description and generates parameters of an adapter
-    def __init__(self, config, activation_func, input_dim=768):
+    def __init__(self, config, input_dim):
         super().__init__()
 
-        self.input_dim = config.hidden_size + 10
+        self.input_dim = input_dim
         self.hidden_dim = config.generator_hdim
         self.output_dim = config.hidden_size * config.adapter_dim * 2 + config.hidden_size + config.adapter_dim
         self.linear1 = linear(self.input_dim, self.hidden_dim)
-        self.activation_fn = ACT2FN['relu']
+        self.activation_fn = nn.ReLU()
         # output weights
         self.weight_up = nn.Linear(self.hidden_dim, config.hidden_size * config.adapter_dim)
         self.weight_down = nn.Linear(self.hidden_dim, config.hidden_size * config.adapter_dim)
         self.bias_up = nn.Linear(self.hidden_dim, config.hidden_size)
         self.bias_down = nn.Linear(self.hidden_dim, config.adapter_dim)
         # init weights
-        # technically wrong init but ah well
         hyperfanin_init_weight(self.weight_up, self.hidden_dim, config.adapter_dim)
         hyperfanin_init_weight(self.weight_down, self.hidden_dim, config.hidden_size)
         hyperfanin_init_bias(self.bias_up, self.hidden_dim)
@@ -57,14 +52,11 @@ class SimpleGenerator(nn.Module):
 
 
 class ParameterGenerator(nn.Module):
-    def __init__(self, config, activation_func):
+    def __init__(self, config):
         super().__init__()
-
         self.config = config
-        self.activation_function = activation_func
-
         self.embed = nn.Embedding(config.num_hidden_layers, 10)
-        self.decoder = SimpleGenerator(config, self.activation_function)
+        self.decoder = SimpleGenerator(config, config.d_model + 10)
 
     def forward(self, hidden_inputs):
         layers = []

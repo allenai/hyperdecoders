@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from .utils import use_task_specific_params, reset_config, \
-    freezing_params, handle_metrics, create_dir, \
+    freeze_model, unfreeze_adapter_params, handle_metrics, create_dir, \
     get_last_checkpoint_path, get_training_args #, T5SaveModelCallback

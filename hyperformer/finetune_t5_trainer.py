@@ -11,14 +11,12 @@ from transformers.trainer_utils import EvaluationStrategy
 
 from adapter_t5 import T5WithAdapterConfig, T5ForConditionalGenerationWithAdapter
 from third_party.trainers import T5Trainer
-from adapters import AdapterController, AutoAdapterConfig
 from data import AutoTask
 from third_party.utils import TaskCollator, check_output_dir
 from metrics import build_compute_metrics_fn
 from training_args import Seq2SeqTrainingArguments, ModelArguments, DataTrainingArguments, \
     AdapterTrainingArguments
-from utils import freezing_params, get_last_checkpoint_path, create_dir,\
-    handle_metrics, get_training_args
+from utils import get_last_checkpoint_path, freeze_model, unfreeze_adapter_params
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +40,7 @@ def main():
         rank_info = remove_rank_info_from_argv(sys.argv)
         args_dict = json.loads(Path(sys.argv[1]).read_text())
         args_dict.update(rank_info)
-        model_args, data_args, training_args, adapter_args = parser.parse_dict(args_dict)
+        model_args, data_args, training_args = parser.parse_dict(args_dict)
     elif len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         logger.warning("config path: %s", sys.argv[1])
         # If we pass only one argument to the script and it's the path to a json file,
@@ -82,46 +80,6 @@ def main():
             model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
-    print(config)
-    extra_model_params = ("encoder_layerdrop", "decoder_layerdrop", "dropout",
-                          "attention_dropout",  "train_adapters")
-    #for p in extra_model_params:
-    #    if getattr(training_args, p, None):
-    #        assert hasattr(config, p), f"({config.__class__.__name__}) doesn't have a `{p}` attribute"
-    #        setattr(config, p, getattr(training_args, p))
-
-    # Gets the adapter config and updates the specified parameters.
-    #if training_args.train_adapters:
-    #    adapter_config = AutoAdapterConfig.get(adapter_args.adapter_config_name)
-    #    adapter_config.input_dim = config.d_model
-    #    adapter_config.tasks = data_args.tasks
-    #    adapter_config.task_to_adapter = {task:adapter for task, adapter in zip(data_args.tasks, data_args.adapters)} if data_args.adapters is not None else None
-    #    # If this is a parametric task embedding this mapping makes sense, but in case we use any task embeddings,
-    #    # then, we do not need any mapping as we use the pretrained task embeddings.
-    #    adapter_config.task_to_embeddings = {task:embedding for task, embedding in zip(data_args.tasks, data_args.task_embeddings)}\
-    #         if (data_args.task_embeddings is not None) else None
-    #    extra_adapter_params = ("task_embedding_dim",
-    #                            "add_layer_norm_before_adapter",
-    #                            "add_layer_norm_after_adapter",
-    #                            "reduction_factor",
-    #                            "hidden_dim",
-    #                            "non_linearity",
-    #                            "train_task_embeddings",
-    #                            "projected_task_embedding_dim",
-    #                            "task_hidden_dim",
-    #                            "conditional_layer_norm",
-    #                            "train_adapters_blocks",
-    #                            "unique_hyper_net",
-    #                            "unique_hyper_net_layer_norm",
-    #                            "efficient_unique_hyper_net")
-    #    for p in extra_adapter_params:
-    #        if hasattr(adapter_args, p) and hasattr(adapter_config, p):
-    #            setattr(adapter_config, p, getattr(adapter_args, p))
-    #        else:
-    #            logger.warning(f"({adapter_config.__class__.__name__}) doesn't have a `{p}` attribute")
-    #    adapter_config.device = training_args.device
-    #else:
-    #    adapter_config = None
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else \
@@ -147,12 +105,9 @@ def main():
         data_args.eval_beams = model.config.num_beams
 
     # freezing the parameters.
-    if training_args.do_train:
-        freezing_params(model, training_args, model_args, adapter_args)
-
-    for name, p in model.named_parameters():
-        if 'param_gen' not in name.lower() and 'mlp' not in name.lower():
-            p.requires_grad = False
+    if training_args.freeze_parameters:
+        freeze_model(model)
+        unfreeze_adapter_params(model)
 
     if training_args.print_num_parameters:
         logger.info(model)
@@ -167,7 +122,7 @@ def main():
     dataset_class = AutoTask
     if training_args.do_train:
         train_datasets = [dataset_class.get(task, seed=data_args.data_seed).get_dataset(
-            split="train", n_obs=data_args.n_train, add_prefix=False if training_args.train_adapters else True,
+            split="train", n_obs=data_args.n_train, add_prefix=True,
             split_validation_test=training_args.split_validation_test)
             for task in data_args.tasks]
         dataset_sizes = [len(train_dataset) for train_dataset in train_datasets]
@@ -175,7 +130,7 @@ def main():
     training_args.remove_unused_columns = False
     eval_datasets = ({task: dataset_class.get(task, seed=data_args.data_seed).get_dataset(
         split="validation", n_obs=data_args.n_val,
-        add_prefix=False if training_args.train_adapters else True,
+        add_prefix=True,
         split_validation_test=training_args.split_validation_test)
                          for task in data_args.eval_tasks}
                      if training_args.do_eval or training_args.evaluation_strategy != EvaluationStrategy.NO
@@ -183,7 +138,7 @@ def main():
     test_dataset = (
         {task: dataset_class.get(task, seed=data_args.data_seed).get_dataset(
             split="test", n_obs=data_args.n_test,
-            add_prefix=False if training_args.train_adapters else True,
+            add_prefix=True,
             split_validation_test=training_args.split_validation_test)
             for task in data_args.eval_tasks} if training_args.do_test else None
     )
@@ -204,9 +159,6 @@ def main():
         data_args=data_args,
         dataset_sizes=dataset_sizes if training_args.do_train else None,
     )
-    #if trainer.is_world_process_zero():
-    #    arguments = get_training_args([model_args, data_args, training_args, adapter_args])
-    #    #handle_metrics("arguments", arguments, training_args.output_dir)
 
     # Trains the model.
     if training_args.do_train:
@@ -237,7 +189,6 @@ def main():
             tokenizer.save_pretrained(training_args.output_dir)
      
     # Evaluation
-    all_metrics = {}
     if training_args.do_eval or training_args.do_test:
         if trainer.is_world_process_zero():
             # By default we load  the model from last checkpoint path,
@@ -269,35 +220,12 @@ def main():
                 dataset_sizes=dataset_sizes if training_args.do_train else None,
             )
 
-        if training_args.train_adapters:
-            if adapter_args.adapter_config_name == "adapter" and data_args.adapters is not None:
-                for name, sub_module in model.named_modules():
-                    task_to_adapter = {eval_task: adapter for eval_task, adapter in
-                                       zip(data_args.eval_tasks, data_args.adapters)}
-                    if isinstance(sub_module, AdapterController):
-                        sub_module.set_task_to_adapter_map(task_to_adapter)
-
     if training_args.do_eval:
-        metrics = trainer.evaluate()
-        #if trainer.is_world_process_zero():
-        #    handle_metrics("val", metrics, training_args.output_dir)
-        #    all_metrics.update(metrics)
+        trainer.evaluate()
 
     if training_args.do_test:
-        metrics = trainer.evaluate(test_dataset)
-        #if trainer.is_world_process_zero():
-        #    handle_metrics("test", metrics, training_args.output_dir)
-        #    all_metrics.update(metrics)
+        trainer.evaluate(test_dataset)
 
-    if torch.cuda.is_available() and training_args.compute_memory:
-        peak_memory = torch.cuda.max_memory_allocated()/1024**2
-        print(
-            "Memory utilization",
-            peak_memory,
-            "MB"
-        )
-        memory_usage = {"peak_memory": peak_memory}
-    return all_metrics
 
 
 def _mp_fn(index):

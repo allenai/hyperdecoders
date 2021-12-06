@@ -140,13 +140,7 @@ class AbstractTaskDataset(abc.ABC):
             indices = self.get_train_split_indices(split)
             dataset = self.select_dataset_samples(indices, dataset, n_obs)
         else:
-            # TODO: later we can join these as one.
-            if n_obs == -1:
-                split = self.get_sampled_split(split, n_obs)
-                dataset = self.load_dataset(split=split)
-            else:
-                # shuffles the data and samples it.
-                dataset = self.get_shuffled_sampled_split(split, n_obs)
+            dataset = self.get_shuffled_sampled_split(split, n_obs)
         return dataset.map(functools.partial(self.preprocessor, add_prefix=add_prefix),
                            remove_columns=dataset.column_names)
 
@@ -743,6 +737,19 @@ class SquadDataset(AbstractTaskDataset):
         tgt_texts = [str(example["answers"]["text"][0])]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
 
+class XSumTaskDataset(AbstractTaskDataset):
+    name = "xsum"
+    task_specific_config = {'max_length': 60, "min_length": 10, "num_beams": 5}
+    metrics = [metrics.rouge]
+    split_to_data_split = {"train": "train",
+                           "validation": "validation",
+                           "test": "test"}
+
+    def preprocessor(self, example, add_prefix=True):
+        src_texts = [example["document"]]
+        tgt_texts = [str(example["summary"])]
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
+
 TASK_MAPPING = OrderedDict([
     ('superglue-boolq', SuperGLUEBoolQTaskDataset),
     ('superglue-cb', SuperGLUECBTaskDataset),
@@ -776,7 +783,8 @@ TASK_MAPPING = OrderedDict([
     ('hellaswag', HellaSwagTaskDataset),
     ('commonsense_qa', CommonsenseQaTaskDataset),
     ('sick', SickTaskDataset),
-    ('squad', SquadDataset)]
+    ('squad', SquadDataset),
+    ('xsum', XSumTaskDataset)]
 )
 
 

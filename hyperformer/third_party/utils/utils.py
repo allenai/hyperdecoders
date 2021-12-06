@@ -251,7 +251,7 @@ class LegacySeq2SeqDataset(AbstractSeq2SeqDataset):
 
 
 class Seq2SeqDataset(AbstractSeq2SeqDataset):
-    """A dataset that calls prepare_seq2seq_batch."""
+    """A dataset that calls the tokenizer."""
 
     def __getitem__(self, index) -> Dict[str, str]:
         index = index + 1  # linecache starts at 1
@@ -262,15 +262,20 @@ class Seq2SeqDataset(AbstractSeq2SeqDataset):
         return {"tgt_texts": tgt_line, "src_texts": source_line, "id": index - 1}
 
     def collate_fn(self, batch) -> Dict[str, torch.Tensor]:
-        """Call prepare_seq2seq_batch."""
-        batch_encoding: Dict[str, torch.Tensor] = self.tokenizer.prepare_seq2seq_batch(
+        batch_encoding: Dict[str, torch.Tensor] = self.tokenizer(
             [x["src_texts"] for x in batch],
-            tgt_texts=[x["tgt_texts"] for x in batch],
             max_length=self.max_source_length,
-            max_target_length=self.max_target_length,
             return_tensors="pt",
             **self.dataset_kwargs,
         ).data
+        with self.tokenizer.as_target_tokenizer():
+            batch_labels = self.tokenizer(
+                [x["tgt_texts"] for x in batch],
+                max_length=self.max_target_length,
+                return_tensors="pt",
+                **self.dataset_kwargs,
+            ).data
+        batch_encoding["labels"] = batch_labels["input_ids"]
         batch_encoding["ids"] = torch.tensor([x["id"] for x in batch])
         return batch_encoding
 
@@ -291,20 +296,12 @@ class Seq2SeqDataCollator:
             self.dataset_kwargs["tgt_lang"] = data_args.tgt_lang
 
     def __call__(self, batch) -> Dict[str, torch.Tensor]:
-        if hasattr(self.tokenizer, "prepare_seq2seq_batch"):
-            batch = self._encode(batch)
-            input_ids, attention_mask, labels = (
-                batch["input_ids"],
-                batch["attention_mask"],
-                batch["labels"],
-            )
-        else:
-            input_ids = torch.stack([x["input_ids"] for x in batch])
-            attention_mask = torch.stack([x["attention_mask"] for x in batch])
-            labels = torch.stack([x["labels"] for x in batch])
-
-            labels = trim_batch(labels, self.pad_token_id)
-            input_ids, attention_mask = trim_batch(input_ids, self.pad_token_id, attention_mask=attention_mask)
+        batch = self._encode(batch)
+        input_ids, attention_mask, labels = (
+            batch["input_ids"],
+            batch["attention_mask"],
+            batch["labels"],
+        )
 
         if isinstance(self.tokenizer, T5Tokenizer):
             decoder_input_ids = self._shift_right_t5(labels)
@@ -327,15 +324,22 @@ class Seq2SeqDataCollator:
         return shifted_input_ids
 
     def _encode(self, batch) -> Dict[str, torch.Tensor]:
-        batch_encoding = self.tokenizer.prepare_seq2seq_batch(
+        batch_encoding = self.tokenizer(
             [x["src_texts"] for x in batch],
-            tgt_texts=[x["tgt_texts"] for x in batch],
             max_length=self.data_args.max_source_length,
-            max_target_length=self.data_args.max_target_length,
             padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
             return_tensors="pt",
             **self.dataset_kwargs,
         )
+        with self.tokenizer.as_target_tokenizer():
+            batch_labels = self.tokenizer(
+                [x["tgt_texts"] for x in batch],
+                max_length=self.data_args.max_target_length,
+                padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
+                return_tensors="pt",
+                **self.dataset_kwargs,
+            )
+        batch_encoding["labels"] = batch_labels["input_ids"]
         return batch_encoding.data
 
 
@@ -687,8 +691,8 @@ class TaskCollator:
       "attention_mask": attention_mask,
       "decoder_input_ids": decoder_input_ids,
       "labels": labels,
+      # "tasks": batch["tasks"], # this might be useful in the future but my experiments dont need
     }
-    output_batch["task"] = batch["task"]
     return output_batch
 
   def _shift_right_t5(self, input_ids):
@@ -699,16 +703,20 @@ class TaskCollator:
     return shifted_input_ids
 
   def _encode(self, batch) -> Dict[str, torch.Tensor]:
-    batch_encoding = self.tokenizer.prepare_seq2seq_batch(
+    batch_encoding = self.tokenizer(
       [x["src_texts"] for x in batch],
-      tgt_texts=[x["tgt_texts"] for x in batch],
       max_length=self.data_args.max_source_length,
-      max_target_length=self.data_args.max_target_length,
       padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
       return_tensors="pt"
     )
+    with self.tokenizer.as_target_tokenizer():
+        labels = self.tokenizer(
+            [x["tgt_texts"] for x in batch],
+            max_length=self.data_args.max_target_length,
+            padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
+            return_tensors="pt"
+        )
+    batch_encoding["labels"] = labels['input_ids']
     tasks = [x["task"] for x in batch]
-    # There should be only one task per batch.
-    assert (len(set(tasks)) == 1)
-    batch_encoding["task"] = tasks[0]
+    batch_encoding["tasks"] = tasks
     return batch_encoding.data
