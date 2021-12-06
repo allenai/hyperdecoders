@@ -2,11 +2,7 @@ import glob
 import os
 from dataclasses import asdict
 from logging import getLogger
-from third_party.utils import (
-    assert_all_frozen,
-    freeze_embeds,
-    freeze_params,
-    save_json)
+from third_party.utils import assert_all_frozen, freeze_embeds, freeze_params, save_json
 from transformers.models.t5.modeling_t5 import T5LayerNorm
 
 from data import TASK_MAPPING
@@ -24,7 +20,7 @@ def create_dir(output_dir):
         os.makedirs(output_dir)
 
 
-def handle_metrics(split, metrics, output_dir): #, gcs_bucket=None):
+def handle_metrics(split, metrics, output_dir):  # , gcs_bucket=None):
     """
     Prints and saves metrics or a general dictionary of results.
 
@@ -76,7 +72,7 @@ def get_last_checkpoint_path(output_dir):
     if len(paths) == 0:
         return output_dir
     else:
-        checkpoints = [int(checkpoint.split('-')[-1]) for checkpoint in paths]
+        checkpoints = [int(checkpoint.split("-")[-1]) for checkpoint in paths]
         max_checkpoint = max(checkpoints)
         return os.path.join(output_dir, "checkpoint-" + str(max_checkpoint))
 
@@ -95,11 +91,13 @@ def reset_config(model, config):
     model.config = config
     logger.info(f"config is reset to the initial values.")
 
+
 def freeze_model(model):
     """Freezes the model weights."""
     freeze_params(model)
 
+
 def unfreeze_adapter_params(model):
     for name, param in model.named_parameters():
-        if "adapter" in name or 'mlp' in name or 'param_gen' in name:
+        if "adapter" in name or "mlp" in name or "param_gen" in name:
             param.requires_grad = True

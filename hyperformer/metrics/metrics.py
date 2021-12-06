@@ -74,17 +74,20 @@ def matthews_corrcoef(predictions, targets) -> dict:
     """Computes the Matthews correlation coefficient."""
     return {"mcc": 100 * sklearn.metrics.matthews_corrcoef(targets, predictions)}
 
+
 def squad_metrics(predictions, targets) -> dict:
     d = defaultdict(list)
     for p, t in zip(predictions, targets):
         d["f1"].append(f1_score(p, t))
         d["em"].append(exact_match_score(p, t))
     from statistics import mean
-    return  { "f1": mean(d["f1"]), "em": mean(d['em'])}
+
+    return {"f1": mean(d["f1"]), "em": mean(d["em"])}
 
 
-def build_compute_metrics_fn(task_names: List[str],
-                             tokenizer: PreTrainedTokenizer) -> Callable[[EvalPrediction], Dict]:
+def build_compute_metrics_fn(
+    task_names: List[str], tokenizer: PreTrainedTokenizer
+) -> Callable[[EvalPrediction], Dict]:
     """Builds a dictionary from each task to the task metric."""
 
     def non_pad_len(tokens: np.ndarray) -> int:
@@ -108,7 +111,7 @@ def build_compute_metrics_fn(task_names: List[str],
         eval_results = {}
         for metric in metrics:
             eval_results.update(metric(pred_str, label_str))
-            if metric.__name__ in ['bleu', 'rouge']:
+            if metric.__name__ in ["bleu", "rouge"]:
                 gen_len = np.round(np.mean(lmap(non_pad_len, pred.predictions)), 1)
                 eval_results.update({"gen_len": gen_len})
         return eval_results
@@ -116,7 +119,11 @@ def build_compute_metrics_fn(task_names: List[str],
     def tasks_metrics(task) -> Dict:
         from data.tasks import TASK_MAPPING
         from data.postprocessors import get_post_processor
-        return functools.partial(compute_metrics, metrics=TASK_MAPPING[task].metrics,
-                                 post_processor=get_post_processor(task))
+
+        return functools.partial(
+            compute_metrics,
+            metrics=TASK_MAPPING[task].metrics,
+            post_processor=get_post_processor(task),
+        )
 
     return {task: tasks_metrics(task) for task in task_names}

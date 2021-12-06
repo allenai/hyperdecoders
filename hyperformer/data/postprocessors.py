@@ -1,4 +1,4 @@
-def string_to_float(string, default=-1.):
+def string_to_float(string, default=-1.0):
     """Converts string to float, using default when conversion not possible."""
     try:
         return float(string)

@@ -27,7 +27,7 @@ def compute_task_max_decoding_length(word_list):
     Returns:
       maximum length after tokenization of the inputs.
     """
-    tokenizer = T5Tokenizer.from_pretrained('t5-base')
+    tokenizer = T5Tokenizer.from_pretrained("t5-base")
     max_len = 0
     for word in word_list:
         ids = tokenizer.encode(word)

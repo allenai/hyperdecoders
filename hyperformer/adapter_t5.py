@@ -1,7 +1,14 @@
 import copy
 
 from transformers.models.t5.configuration_t5 import T5Config
-from transformers.models.t5.modeling_t5 import T5Block, T5LayerFF, T5Stack, T5Model, T5ForConditionalGeneration, T5EncoderModel
+from transformers.models.t5.modeling_t5 import (
+    T5Block,
+    T5LayerFF,
+    T5Stack,
+    T5Model,
+    T5ForConditionalGeneration,
+    T5EncoderModel,
+)
 from transformers.activations import ACT2FN
 import torch
 from torch import nn
@@ -9,14 +16,21 @@ from torch import nn
 from adapter_generators import ParameterGenerator
 
 
-
 class T5WithAdapterConfig(T5Config):
-    def __init__(self, use_adapters=True, use_manual_adapters=False, adapter_hidden_param=64, hypernetwork_bottleneck=128, **kwargs):
+    def __init__(
+        self,
+        use_adapters=True,
+        use_manual_adapters=False,
+        adapter_hidden_param=64,
+        hypernetwork_bottleneck=128,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.adapter_dim = adapter_hidden_param
         self.generator_hdim = hypernetwork_bottleneck
         self.use_adapters = use_adapters
         self.use_manual_adapters = use_manual_adapters
+
 
 class T5LayerFFWithAdapter(T5LayerFF):
     def __init__(self, config):
@@ -57,19 +71,31 @@ class T5LayerFFWithAdapter(T5LayerFF):
         hidden_states = hidden_states + forwarded_states
         return hidden_states
 
+
 class T5BlockWithAdapter(T5Block):
     def __init__(self, config, has_relative_attention_bias=False):
-        super().__init__(config, has_relative_attention_bias=has_relative_attention_bias)
+        super().__init__(
+            config, has_relative_attention_bias=has_relative_attention_bias
+        )
         self.layer[-1] = T5LayerFFWithAdapter(config)
+
 
 class T5StackWithAdapter(T5Stack):
     def __init__(self, config, embed_tokens=None):
         super().__init__(config, embed_tokens=embed_tokens)
         self.block = torch.nn.ModuleList(
-            [T5BlockWithAdapter(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
+            [
+                T5BlockWithAdapter(config, has_relative_attention_bias=bool(i == 0))
+                for i in range(config.num_layers)
+            ]
         )
         self.param_gen = ParameterGenerator(config)
-        self.mlp = nn.Sequential(nn.Linear(config.d_model, config.d_model), nn.ReLU(), nn.Linear(config.d_model, config.d_model), nn.ReLU())
+        self.mlp = nn.Sequential(
+            nn.Linear(config.d_model, config.d_model),
+            nn.ReLU(),
+            nn.Linear(config.d_model, config.d_model),
+            nn.ReLU(),
+        )
 
     def forward(
         self,
@@ -79,14 +105,13 @@ class T5StackWithAdapter(T5Stack):
     ):
         # using input ids to determine whats going
         if self.is_decoder and self.config.use_adapters:
-            # from transformers import T5TokenizerFast
-            # tok = T5TokenizerFast.from_pretrained('t5-small')
-            # print(input_ids[0])
-            # print(tok.decode(input_ids[0].cpu().numpy().tolist()))
-            x = self.mlp(encoder_hidden_states).mean(dim=1) # mean over sentence
-            self.apply_params_to_adapters(encoder_hidden_states.size(0), self.param_gen(x))
-        return super().forward(input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs)
-
+            x = self.mlp(encoder_hidden_states).mean(dim=1)  # mean over sentence
+            self.apply_params_to_adapters(
+                encoder_hidden_states.size(0), self.param_gen(x)
+            )
+        return super().forward(
+            input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs
+        )
 
     def apply_params_to_adapters(self, batch_size, generated_params):
         hidden_size = self.config.hidden_size
@@ -97,10 +122,15 @@ class T5StackWithAdapter(T5Stack):
             # dw, db: down weight, down bias
             # uw, ub: up weight, up bias
             uw, dw, ub, db = p
-            adapter_layer.adapter_down_weight = dw.view(batch_size, hidden_size, d_adapter)
+            adapter_layer.adapter_down_weight = dw.view(
+                batch_size, hidden_size, d_adapter
+            )
             adapter_layer.adapter_down_bias = db.view(batch_size, d_adapter)
-            adapter_layer.adapter_up_weight = uw.view(batch_size, d_adapter, hidden_size)
+            adapter_layer.adapter_up_weight = uw.view(
+                batch_size, d_adapter, hidden_size
+            )
             adapter_layer.adapter_up_bias = ub.view(batch_size, hidden_size)
+
 
 class T5ModelWithAdapter(T5Model):
     def __init__(self, config: T5Config):
@@ -149,4 +179,3 @@ class T5EncoderModelWithAdapter(T5EncoderModel):
         self.encoder = T5StackWithAdapter(encoder_config, self.shared)
 
         self.init_weights()
-
