@@ -1,1 +1,5 @@
 __pycache__
+outputs/
+.lock
+.python-version
+todo
