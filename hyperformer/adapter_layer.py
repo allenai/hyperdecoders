@@ -27,7 +27,7 @@ class AdapterLayer(nn.Module):
         self.adapter_up_weight = None
         self.adapter_up_bias = None
 
-    def apply_adapter_params(self, bsz, dw, db, uw, ub):
+    def apply_adapter_params(self, bsz, uw, dw, ub, db):
         self.adapter_down_weight = dw.view(bsz, self.input_dim, self.adapter_dim)
         self.adapter_down_bias = db.view(bsz, self.adapter_dim)
         self.adapter_up_weight = uw.view(bsz, self.adapter_dim, self.output_dim)

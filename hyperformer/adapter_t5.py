@@ -37,8 +37,8 @@ class T5WithAdapterConfig(T5Config):
 class T5DenseReluDenseWithAdapter(T5DenseReluDense):
     def __init__(self, config):
         super().__init__(config)
-        self.wi_adapter = AdapterLayer(config, config.d_model, config.adapter_dim, config.d_ff)
-        self.wo_adapter = AdapterLayer(config, config.d_ff, config.adapter_dim, config.d_model)
+        self.wi_adapter = AdapterLayer(config.d_model, config.adapter_dim, config.d_ff)
+        self.wo_adapter = AdapterLayer(config.d_ff, config.adapter_dim, config.d_model)
 
     def forward(self, hidden_states):
         hidden_states = self.wi(hidden_states) + self.wi_adapter(hidden_states)
@@ -52,9 +52,9 @@ class T5DenseGatedGeluDenseWithAdapter(T5DenseGatedGeluDense):
     def __init__(self, config):
         super().__init__(config)
         # imma be big and chuck adapters for *every* linear layer
-        self.wi_0_adapter = AdapterLayer(config, config.d_model, config.adapter_dim, config.d_ff)
-        self.wi_1_adapter = AdapterLayer(config, config.d_model, config.adapter_dim, config.d_ff)
-        self.wo_adapter = AdapterLayer(config, config.d_ff, config.adapter_dim, config.d_model)
+        self.wi_0_adapter = AdapterLayer(config.d_model, config.adapter_dim, config.d_ff)
+        self.wi_1_adapter = AdapterLayer(config.d_model, config.adapter_dim, config.d_ff)
+        self.wo_adapter = AdapterLayer(config.d_ff, config.adapter_dim, config.d_model)
 
     def forward(self, hidden_states):
         hidden_gelu = self.gelu_act(self.wi_0(hidden_states) + self.wi_0_adapter(hidden_states))
@@ -110,6 +110,7 @@ class T5StackWithAdapter(T5Stack):
         **kwargs,
     ):
         # using input ids to determine whats going
+        self.clear_adapters()
         if self.is_decoder and self.config.use_adapters:
             x = self.mlp(encoder_hidden_states).mean(dim=1)  # mean over sentence
             self.apply_params_to_adapters(

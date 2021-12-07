@@ -39,12 +39,12 @@ class SimpleGenerator(nn.Module):
         self.activation_fn = nn.ReLU()
         # output weights
         self.weight_up = nn.Linear(
-            self.hidden_dim, config.d_ffn * config.adapter_dim
+            self.hidden_dim, config.d_ff * config.adapter_dim
         )
         self.weight_down = nn.Linear(
             self.hidden_dim, config.d_model * config.adapter_dim
         )
-        self.bias_up = nn.Linear(self.hidden_dim, config.d_ffn)
+        self.bias_up = nn.Linear(self.hidden_dim, config.d_ff)
         self.bias_down = nn.Linear(self.hidden_dim, config.adapter_dim)
         # init weights
         hyperfanin_init_weight(self.weight_up, self.hidden_dim, config.adapter_dim)
@@ -69,14 +69,14 @@ class ParameterGenerator(nn.Module):
         self.config = config
         self.ffn_embed = nn.Embedding(2, 10)
         self.embed = nn.Embedding(config.num_hidden_layers, 10)
-        self.decoder = SimpleGenerator(config, config.d_model + 10)
+        self.decoder = SimpleGenerator(config, config.d_model + 20)
 
     def forward(self, hidden_inputs):
         layers = []
         # setup idxs we need
-        layers_idxs = torch.range(0, self.config.num_hidden_layers - 1, device=hidden_inputs.device)
+        layers_idxs = torch.arange(0, self.config.num_hidden_layers, dtype=torch.long, device=hidden_inputs.device)
         layers_idxs = layers_idxs.repeat(hidden_inputs.size(0), 1)
-        ffn_idxs = torch.range(0, 1, device=hidden_inputs.device)
+        ffn_idxs = torch.arange(0, 2, dtype=torch.long, device=hidden_inputs.device)
         ffn_idxs = ffn_idxs.repeat(hidden_inputs.size(0), 1)
         for i in range(self.config.num_hidden_layers):
             layer_embed = self.embed(layers_idxs[:, i])
