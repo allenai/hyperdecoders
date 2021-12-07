@@ -8,12 +8,15 @@ from transformers.models.t5.modeling_t5 import (
     T5Model,
     T5ForConditionalGeneration,
     T5EncoderModel,
+    T5DenseGatedGeluDense,
+    T5DenseReluDense,
 )
 from transformers.activations import ACT2FN
 import torch
 from torch import nn
 
 from adapter_generators import ParameterGenerator
+from adapter_layer import AdapterLayer
 
 
 class T5WithAdapterConfig(T5Config):
@@ -31,47 +34,48 @@ class T5WithAdapterConfig(T5Config):
         self.use_adapters = use_adapters
         self.use_manual_adapters = use_manual_adapters
 
+class T5DenseReluDenseWithAdapter(T5DenseReluDense):
+    def __init__(self, config):
+        super().__init__(config)
+        self.wi_adapter = AdapterLayer(config, config.d_model, config.adapter_dim, config.d_ff)
+        self.wo_adapter = AdapterLayer(config, config.d_ff, config.adapter_dim, config.d_model)
+
+    def forward(self, hidden_states):
+        hidden_states = self.wi(hidden_states) + self.wi_adapter(hidden_states)
+        hidden_states = nn.functional.relu(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.wo(hidden_states) + self.wo_adapter(hidden_states)
+        return hidden_states
+
+
+class T5DenseGatedGeluDenseWithAdapter(T5DenseGatedGeluDense):
+    def __init__(self, config):
+        super().__init__(config)
+        # imma be big and chuck adapters for *every* linear layer
+        self.wi_0_adapter = AdapterLayer(config, config.d_model, config.adapter_dim, config.d_ff)
+        self.wi_1_adapter = AdapterLayer(config, config.d_model, config.adapter_dim, config.d_ff)
+        self.wo_adapter = AdapterLayer(config, config.d_ff, config.adapter_dim, config.d_model)
+
+    def forward(self, hidden_states):
+        hidden_gelu = self.gelu_act(self.wi_0(hidden_states) + self.wi_0_adapter(hidden_states))
+        hidden_linear = self.wi_1(hidden_states) + self.wi_1_adapter(hidden_states)
+        hidden_states = hidden_gelu * hidden_linear
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.wo(hidden_states) + self.wo_adapter(hidden_states)
+        return hidden_states
+
 
 class T5LayerFFWithAdapter(T5LayerFF):
     def __init__(self, config):
         super().__init__(config)
-        self.config = config
-        self.adapter_dim = config.adapter_dim
-        self.adapter_down_weight = None
-        self.adapter_down_bias = None
-        self.adapter_up_weight = None
-        self.adapter_up_bias = None
-        # manual adapters
-        self.adapter_down_manual = nn.Linear(config.hidden_size, self.adapter_dim)
-        self.adapter_up_manual = nn.Linear(self.adapter_dim, config.hidden_size)
-        self.hidden_act = nn.ReLU()
-
-    def adapter_down(self, x):
-        return (x @ self.adapter_down_weight) + self.adapter_down_bias.unsqueeze(1)
-
-    def adapter_up(self, x):
-        return (x @ self.adapter_up_weight) + self.adapter_up_bias.unsqueeze(1)
-
-    def apply_adapter(self, x):
-        if self.config.use_manual_adapters or self.adapter_down_weight is None:
-            y = self.adapter_down_manual(x)
-            y = self.hidden_act(y)
-            y = self.adapter_up_manual(y)
+        if config.feed_forward_proj == "relu":
+            self.DenseReluDense = T5DenseReluDenseWithAdapter(config)
+        elif config.feed_forward_proj == "gated-gelu":
+            self.DenseReluDense = T5DenseGatedGeluDenseWithAdapter(config)
         else:
-            y = self.adapter_down(x)
-            y = self.hidden_act(y)
-            y = self.adapter_up(y)
-        return y + x
-
-    def forward(self, hidden_states):
-        normed_hidden_states = self.layer_norm(hidden_states)
-        forwarded_states = self.dropout(self.DenseReluDense(normed_hidden_states))
-        if self.config.use_adapters:
-            # parallel adapter setup
-            adapter_states = self.apply_adapter(normed_hidden_states)
-            forwarded_states = forwarded_states + adapter_states
-        hidden_states = hidden_states + forwarded_states
-        return hidden_states
+            raise ValueError(
+                f"{self.config.feed_forward_proj} is not supported. Choose between `relu` and `gated-gelu`"
+            )
 
 
 class T5BlockWithAdapter(T5Block):
@@ -115,24 +119,27 @@ class T5StackWithAdapter(T5Stack):
             input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs
         )
 
+    def clear_adapters(self):
+        for layer in self.block:
+            adapter_block = layer.layer[-1].DenseReluDense
+            if isinstance(adapter_block, T5DenseGatedGeluDenseWithAdapter):
+                adapter_block.wi_0_adapter.clear_adapter()
+                adapter_block.wi_1_adapter.clear_adapter()
+                adapter_block.wo_adapter.clear_adapter()
+            elif isinstance(adapter_block, T5DenseReluDenseWithAdapter):
+                adapter_block.wi_adapter.clear_adapter()
+                adapter_block.wo_adapter.clear_adapter()
+
     def apply_params_to_adapters(self, batch_size, generated_params):
-        hidden_size = self.config.hidden_size
-        d_adapter = self.config.adapter_dim
-
         for p, layer in zip(generated_params, self.block):
-            adapter_layer = layer.layer[-1]
-            # dw, db: down weight, down bias
-            # uw, ub: up weight, up bias
-            uw, dw, ub, db = p
-            adapter_layer.adapter_down_weight = dw.view(
-                batch_size, hidden_size, d_adapter
-            )
-            adapter_layer.adapter_down_bias = db.view(batch_size, d_adapter)
-            adapter_layer.adapter_up_weight = uw.view(
-                batch_size, d_adapter, hidden_size
-            )
-            adapter_layer.adapter_up_bias = ub.view(batch_size, hidden_size)
-
+            adapter_layer = layer.layer[-1].DenseReluDense
+            if isinstance(adapter_layer, T5DenseGatedGeluDenseWithAdapter):
+                adapter_layer.wi_0_adapter.apply_adapter_params(batch_size, *p[0])
+                adapter_layer.wi_1_adapter.apply_adapter_params(batch_size, *p[1])
+                #adapter_layer.wo_adapter.apply_adapter_params(batch_size, *p[2])
+            elif isinstance(adapter_layer, T5DenseReluDenseWithAdapter):
+                adapter_layer.wi_adapter.apply_adapter_params(batch_size, *p[0])
+                #adapter_layer.wo_adapter.apply_adapter_params(batch_size, *p[1])
 
 class T5ModelWithAdapter(T5Model):
     def __init__(self, config: T5Config):

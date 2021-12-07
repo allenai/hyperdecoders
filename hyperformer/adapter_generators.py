@@ -39,16 +39,16 @@ class SimpleGenerator(nn.Module):
         self.activation_fn = nn.ReLU()
         # output weights
         self.weight_up = nn.Linear(
-            self.hidden_dim, config.hidden_size * config.adapter_dim
+            self.hidden_dim, config.d_ffn * config.adapter_dim
         )
         self.weight_down = nn.Linear(
-            self.hidden_dim, config.hidden_size * config.adapter_dim
+            self.hidden_dim, config.d_model * config.adapter_dim
         )
-        self.bias_up = nn.Linear(self.hidden_dim, config.hidden_size)
+        self.bias_up = nn.Linear(self.hidden_dim, config.d_ffn)
         self.bias_down = nn.Linear(self.hidden_dim, config.adapter_dim)
         # init weights
         hyperfanin_init_weight(self.weight_up, self.hidden_dim, config.adapter_dim)
-        hyperfanin_init_weight(self.weight_down, self.hidden_dim, config.hidden_size)
+        hyperfanin_init_weight(self.weight_down, self.hidden_dim, config.d_model)
         hyperfanin_init_bias(self.bias_up, self.hidden_dim)
         hyperfanin_init_bias(self.bias_down, self.hidden_dim)
 
@@ -67,13 +67,23 @@ class ParameterGenerator(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.ffn_embed = nn.Embedding(2, 10)
         self.embed = nn.Embedding(config.num_hidden_layers, 10)
         self.decoder = SimpleGenerator(config, config.d_model + 10)
 
     def forward(self, hidden_inputs):
         layers = []
+        # setup idxs we need
+        layers_idxs = torch.range(0, self.config.num_hidden_layers - 1, device=hidden_inputs.device)
+        layers_idxs = layers_idxs.repeat(hidden_inputs.size(0), 1)
+        ffn_idxs = torch.range(0, 1, device=hidden_inputs.device)
+        ffn_idxs = ffn_idxs.repeat(hidden_inputs.size(0), 1)
         for i in range(self.config.num_hidden_layers):
-            embed = self.embed(torch.tensor([i], device=hidden_inputs.device))
-            embed = embed.repeat(hidden_inputs.size(0), 1)
-            layers.append(self.decoder(torch.cat([hidden_inputs, embed], dim=1)))
+            layer_embed = self.embed(layers_idxs[:, i])
+            ffn_params = []
+            for j in range(2):
+                ffn_embed = self.ffn_embed(ffn_idxs[:, j])
+                hidden_input = torch.cat([hidden_inputs, layer_embed, ffn_embed], dim=1)
+                ffn_params.append(self.decoder(hidden_input))
+            layers.append(ffn_params)
         return layers
