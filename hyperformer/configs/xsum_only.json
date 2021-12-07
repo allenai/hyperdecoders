@@ -1,6 +1,6 @@
 {
-    "model_name_or_path": "google/t5-v1_1-small",
-    "tokenizer_name": "google/t5-v1_1-small",
+    "model_name_or_path": "google/t5-v1_1-large",
+    "tokenizer_name": "google/t5-v1_1-large",
     "learning_rate": 3e-4,
     "output_dir": "outputs/xsum_only",
     "max_source_length": 512,
