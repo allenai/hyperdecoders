@@ -11,7 +11,7 @@ from transformers.optimization import (
     get_linear_schedule_with_warmup,
     get_polynomial_decay_schedule_with_warmup,
 )
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 arg_to_scheduler = {
     "cosine_w_restarts": get_cosine_with_hard_restarts_schedule_with_warmup,
@@ -262,6 +262,12 @@ class DataTrainingArguments:
     )
     data_seed: Optional[int] = field(
         default=42, metadata={"help": "The seed used to subsample the datasets."}
+    )
+    ignore_metric_keys: Optional[Tuple[str]] = field(
+        default=("xsum_eval_rouge1", "xsum_eval_rougeL", "xsum_eval_rougeLsum"),
+        metadata={
+            "help": "Metric keys to ignore in calculating average for best model"
+        },
     )
 
 

@@ -306,7 +306,13 @@ class T5Trainer(Trainer):
             reset_config(self.model, model_config)
 
         # Computes the average metrics across all the tasks without their corresponding losses.
-        metrics = [results[key] for key in results.keys() if "loss" not in key]
+        # For some cases, we want to only consider one metric subset, e.g. rouge2 instead of rouge1+2+L etc.
+        # otherwise, rouge will be overrepresented in avg vs tasks with a single metric value (e.g. any glue task)
+        metrics = [
+            results[key]
+            for key in results.keys()
+            if "loss" not in key and key not in self.data_args.ignore_metric_keys
+        ]
         results["eval_average_metrics"] = np.mean(metrics)
         print(results["eval_average_metrics"], "<----")
         self.control = self.callback_handler.on_evaluate(
