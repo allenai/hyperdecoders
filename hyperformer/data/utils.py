@@ -19,7 +19,9 @@ def round_stsb_target(label):
     """
     return np.round((label * 5) / 5, decimals=1)
 
+
 tokenizer = T5Tokenizer.from_pretrained("t5-base")
+
 
 def compute_task_max_decoding_length(word_list):
     """Computes the max decoding length for the given list of words

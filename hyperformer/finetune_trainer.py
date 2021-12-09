@@ -6,10 +6,21 @@ import logging
 import os
 from pathlib import Path
 
-from transformers import AutoTokenizer, HfArgumentParser, set_seed
+from transformers import (
+    AutoTokenizer,
+    HfArgumentParser,
+    set_seed,
+)
 from transformers.trainer_utils import EvaluationStrategy
 
-from adapter_t5 import T5WithAdapterConfig, T5ForConditionalGenerationWithAdapter
+from modeling.adapter_t5 import (
+    T5WithAdapterConfig,
+    T5ForConditionalGenerationWithAdapter,
+)
+from modeling.adapter_bart import (
+    BartWithAdapterConfig,
+    BartForConditionalGenerationWithAdapter,
+)
 from third_party.trainers import T5Trainer
 from data import AutoTask
 from third_party.utils import TaskCollator, check_output_dir
@@ -92,12 +103,23 @@ def main():
     # Set seed
     set_seed(training_args.seed)
 
+    if "bart" in (
+        model_args.config_name
+        if model_args.config_name
+        else model_args.model_name_or_path
+    ):
+        model_class = BartForConditionalGenerationWithAdapter
+        config_class = BartWithAdapterConfig
+    else:
+        model_class = T5ForConditionalGenerationWithAdapter
+        config_class = T5WithAdapterConfig
+
     # Load pretrained model and tokenizer
     #
     # Distributed training:
     # The .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
-    config = T5WithAdapterConfig.from_pretrained(
+    config = config_class.from_pretrained(
         model_args.config_name
         if model_args.config_name
         else model_args.model_name_or_path,
@@ -111,7 +133,7 @@ def main():
         cache_dir=model_args.cache_dir,
     )
     if model_args.not_load_t5_checkpoint:
-        model = T5ForConditionalGenerationWithAdapter(config=config)
+        model = model_class(config=config)
     else:
         last_checkpoint_path = training_args.output_dir
         model_path = (
@@ -128,7 +150,7 @@ def main():
             else last_checkpoint_path
         )
         logger.warning("model path loaded from : %s", model_path)
-        model = T5ForConditionalGenerationWithAdapter.from_pretrained(
+        model = model_class.from_pretrained(
             model_path,
             from_tf=".ckpt" in model_args.model_name_or_path,
             config=config,
@@ -269,10 +291,10 @@ def main():
             # set save_total = 1 so the best model is loaded here.
             # if not exists returns the path to the output_dir.
             last_checkpoint_path = get_last_checkpoint_path(training_args.output_dir)
-            config = T5WithAdapterConfig.from_pretrained(
+            config = config_class.from_pretrained(
                 last_checkpoint_path, cache_dir=model_args.cache_dir
             )
-            model = T5ForConditionalGenerationWithAdapter.from_pretrained(
+            model = model_class.from_pretrained(
                 last_checkpoint_path,
                 from_tf=".ckpt" in training_args.output_dir,
                 config=config,

@@ -2,11 +2,11 @@ from torch import nn
 
 
 class AdapterLayer(nn.Module):
-    def __init__(self, input_dim, adapter_dim, output_dim):
+    def __init__(self, hidden_size, adapter_dim):
         super().__init__()
         self.adapter_dim = adapter_dim
-        self.input_dim = input_dim
-        self.output_dim = output_dim
+        self.input_dim = hidden_size
+        self.output_dim = hidden_size
         # insertion weights
         self.adapter_down_weight = None
         self.adapter_down_bias = None
@@ -14,12 +14,12 @@ class AdapterLayer(nn.Module):
         self.adapter_up_bias = None
         self.hidden_act = nn.ReLU()
         # learnt adapter + inits for it
-        self.adapter_down_manual = nn.Linear(input_dim, self.adapter_dim)
-        self.adapter_up_manual = nn.Linear(self.adapter_dim, output_dim)
+        self.adapter_down_manual = nn.Linear(hidden_size, self.adapter_dim)
+        self.adapter_up_manual = nn.Linear(self.adapter_dim, hidden_size)
         nn.init.xavier_uniform_(self.adapter_up_manual.weight, gain=1e-4)
         nn.init.xavier_uniform_(self.adapter_down_manual.weight, gain=1e-4)
-        nn.init.constant_(self.adapter_up_manual.bias, 0.)
-        nn.init.constant_(self.adapter_down_manual.bias, 0.)
+        nn.init.constant_(self.adapter_up_manual.bias, 0.0)
+        nn.init.constant_(self.adapter_down_manual.bias, 0.0)
 
     def clear_adapter(self):
         self.adapter_down_weight = None
@@ -42,4 +42,4 @@ class AdapterLayer(nn.Module):
             x = self.adapter_down_manual(x)
             x = self.hidden_act(x)
             x = self.adapter_up_manual(x)
-        return x # no residual connection - we let the user of this layer decide that
+        return x  # no residual connection - we let the user of this layer decide that

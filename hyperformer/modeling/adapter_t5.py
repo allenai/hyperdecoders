@@ -8,15 +8,14 @@ from transformers.models.t5.modeling_t5 import (
     T5Model,
     T5ForConditionalGeneration,
     T5EncoderModel,
-    T5DenseGatedGeluDense,
-    T5DenseReluDense,
+    T5LayerSelfAttention,
+    T5LayerCrossAttention,
 )
-from transformers.activations import ACT2FN
 import torch
 from torch import nn
 
-from adapter_generators import ParameterGenerator
-from adapter_layer import AdapterLayer
+from modeling.adapter_generators import ParameterGenerator
+from modeling.adapter_layer import AdapterLayer
 
 
 class T5WithAdapterConfig(T5Config):
@@ -34,48 +33,99 @@ class T5WithAdapterConfig(T5Config):
         self.use_adapters = use_adapters
         self.use_manual_adapters = use_manual_adapters
 
-class T5DenseReluDenseWithAdapter(T5DenseReluDense):
-    def __init__(self, config):
-        super().__init__(config)
-        self.wi_adapter = AdapterLayer(config.d_model, config.adapter_dim, config.d_ff)
-        self.wo_adapter = AdapterLayer(config.d_ff, config.adapter_dim, config.d_model)
-
-    def forward(self, hidden_states):
-        hidden_states = self.wi(hidden_states) + self.wi_adapter(hidden_states)
-        hidden_states = nn.functional.relu(hidden_states)
-        hidden_states = self.dropout(hidden_states)
-        hidden_states = self.wo(hidden_states) + self.wo_adapter(hidden_states)
-        return hidden_states
-
-
-class T5DenseGatedGeluDenseWithAdapter(T5DenseGatedGeluDense):
-    def __init__(self, config):
-        super().__init__(config)
-        # imma be big and chuck adapters for *every* linear layer
-        self.wi_0_adapter = AdapterLayer(config.d_model, config.adapter_dim, config.d_ff)
-        self.wi_1_adapter = AdapterLayer(config.d_model, config.adapter_dim, config.d_ff)
-        self.wo_adapter = AdapterLayer(config.d_ff, config.adapter_dim, config.d_model)
-
-    def forward(self, hidden_states):
-        hidden_gelu = self.gelu_act(self.wi_0(hidden_states) + self.wi_0_adapter(hidden_states))
-        hidden_linear = self.wi_1(hidden_states) + self.wi_1_adapter(hidden_states)
-        hidden_states = hidden_gelu * hidden_linear
-        hidden_states = self.dropout(hidden_states)
-        hidden_states = self.wo(hidden_states) + self.wo_adapter(hidden_states)
-        return hidden_states
-
 
 class T5LayerFFWithAdapter(T5LayerFF):
     def __init__(self, config):
         super().__init__(config)
-        if config.feed_forward_proj == "relu":
-            self.DenseReluDense = T5DenseReluDenseWithAdapter(config)
-        elif config.feed_forward_proj == "gated-gelu":
-            self.DenseReluDense = T5DenseGatedGeluDenseWithAdapter(config)
-        else:
-            raise ValueError(
-                f"{self.config.feed_forward_proj} is not supported. Choose between `relu` and `gated-gelu`"
-            )
+        self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
+
+    def forward(self, hidden_states):
+        normed_states = self.layer_norm(hidden_states)
+        forwarded_states = self.DenseReluDense(normed_states)
+        hidden_states = (
+            hidden_states
+            + self.dropout(forwarded_states)
+            + self.adapter_layer(normed_states)
+        )
+        return hidden_states
+
+
+class T5LayerSelfAttentionWithAdapter(T5LayerSelfAttention):
+    def __init__(self, config, has_relative_attention_bias=False):
+        super().__init__(
+            config, has_relative_attention_bias=has_relative_attention_bias
+        )
+        self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask=None,
+        position_bias=None,
+        layer_head_mask=None,
+        past_key_value=None,
+        use_cache=False,
+        output_attentions=False,
+    ):
+        normed_hidden_states = self.layer_norm(hidden_states)
+        attention_output = self.SelfAttention(
+            normed_hidden_states,
+            mask=attention_mask,
+            position_bias=position_bias,
+            layer_head_mask=layer_head_mask,
+            past_key_value=past_key_value,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+        )
+        hidden_states = (
+            hidden_states
+            + self.dropout(attention_output[0])
+            + self.adapter_layer(normed_hidden_states)
+        )
+        outputs = (hidden_states,) + attention_output[
+            1:
+        ]  # add attentions if we output them
+        return outputs
+
+
+class T5LayerCrossAttentionWithAdapter(T5LayerCrossAttention):
+    def __init__(self, config):
+        super().__init__(config)
+        self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
+
+    def forward(
+        self,
+        hidden_states,
+        key_value_states,
+        attention_mask=None,
+        position_bias=None,
+        layer_head_mask=None,
+        past_key_value=None,
+        use_cache=False,
+        query_length=None,
+        output_attentions=False,
+    ):
+        normed_hidden_states = self.layer_norm(hidden_states)
+        attention_output = self.EncDecAttention(
+            normed_hidden_states,
+            mask=attention_mask,
+            key_value_states=key_value_states,
+            position_bias=position_bias,
+            layer_head_mask=layer_head_mask,
+            past_key_value=past_key_value,
+            use_cache=use_cache,
+            query_length=query_length,
+            output_attentions=output_attentions,
+        )
+        layer_output = (
+            hidden_states
+            + self.dropout(attention_output[0])
+            + self.adapter_layer(normed_hidden_states)
+        )
+        outputs = (layer_output,) + attention_output[
+            1:
+        ]  # add attentions if we output them
+        return outputs
 
 
 class T5BlockWithAdapter(T5Block):
@@ -83,6 +133,11 @@ class T5BlockWithAdapter(T5Block):
         super().__init__(
             config, has_relative_attention_bias=has_relative_attention_bias
         )
+        self.layer[0] = T5LayerSelfAttentionWithAdapter(
+            config, has_relative_attention_bias=has_relative_attention_bias
+        )
+        if self.is_decoder:
+            self.layer[1] = T5LayerCrossAttentionWithAdapter(config)
         self.layer[-1] = T5LayerFFWithAdapter(config)
 
 
@@ -121,26 +176,25 @@ class T5StackWithAdapter(T5Stack):
         )
 
     def clear_adapters(self):
-        for layer in self.block:
-            adapter_block = layer.layer[-1].DenseReluDense
-            if isinstance(adapter_block, T5DenseGatedGeluDenseWithAdapter):
-                adapter_block.wi_0_adapter.clear_adapter()
-                adapter_block.wi_1_adapter.clear_adapter()
-                adapter_block.wo_adapter.clear_adapter()
-            elif isinstance(adapter_block, T5DenseReluDenseWithAdapter):
-                adapter_block.wi_adapter.clear_adapter()
-                adapter_block.wo_adapter.clear_adapter()
+        for block in self.block:
+            for layer in block.layer:
+                if (
+                    isinstance(layer, T5LayerSelfAttentionWithAdapter)
+                    or isinstance(layer, T5LayerCrossAttentionWithAdapter)
+                    or isinstance(layer, T5LayerFFWithAdapter)
+                ):
+                    layer.adapter_layer.clear_adapter()
 
     def apply_params_to_adapters(self, batch_size, generated_params):
-        for p, layer in zip(generated_params, self.block):
-            adapter_layer = layer.layer[-1].DenseReluDense
-            if isinstance(adapter_layer, T5DenseGatedGeluDenseWithAdapter):
-                adapter_layer.wi_0_adapter.apply_adapter_params(batch_size, *p[0])
-                adapter_layer.wi_1_adapter.apply_adapter_params(batch_size, *p[1])
-                #adapter_layer.wo_adapter.apply_adapter_params(batch_size, *p[2])
-            elif isinstance(adapter_layer, T5DenseReluDenseWithAdapter):
-                adapter_layer.wi_adapter.apply_adapter_params(batch_size, *p[0])
-                #adapter_layer.wo_adapter.apply_adapter_params(batch_size, *p[1])
+        for param, block in zip(generated_params, self.block):
+            for p, l in zip(param, block.layer):
+                if (
+                    isinstance(l, T5LayerSelfAttentionWithAdapter)
+                    or isinstance(l, T5LayerCrossAttentionWithAdapter)
+                    or isinstance(l, T5LayerFFWithAdapter)
+                ):
+                    l.adapter_layer.apply_adapter_params(batch_size, *p)
+
 
 class T5ModelWithAdapter(T5Model):
     def __init__(self, config: T5Config):
