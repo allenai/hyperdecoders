@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 
@@ -35,9 +36,11 @@ class AdapterLayer(nn.Module):
 
     def forward(self, x):
         if self.adapter_down_weight is not None:
-            x = (x @ self.adapter_down_weight) + self.adapter_down_bias.unsqueeze(1)
+            #x = (x @ self.adapter_down_weight) + self.adapter_down_bias.unsqueeze(1)
+            x = torch.einsum('bhld,bda->bhla', x, self.adapter_down_weight) + self.adapter_down_bias[:, None, None, :]
             x = self.hidden_act(x)
-            x = (x @ self.adapter_up_weight) + self.adapter_up_bias.unsqueeze(1)
+            #x = (x @ self.adapter_up_weight) + self.adapter_up_bias.unsqueeze(1)
+            x = torch.einsum('bhla,bad->bhld', x, self.adapter_up_weight) + self.adapter_up_bias[:, None, None, :]
         else:
             x = self.adapter_down_manual(x)
             x = self.hidden_act(x)

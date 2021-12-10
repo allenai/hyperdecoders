@@ -25,7 +25,7 @@ def hyperfanin_init_bias(linear_layer, hypernet_in):
 
 class SimpleGenerator(nn.Module):
     # takes in a encoded task description and generates parameters of an adapter
-    def __init__(self, config, input_dim):
+    def __init__(self, config, input_dim, hidden_size):
         super().__init__()
 
         self.input_dim = input_dim
@@ -34,16 +34,16 @@ class SimpleGenerator(nn.Module):
         self.activation_fn = nn.ReLU()
         # output weights
         self.weight_up = nn.Linear(
-            self.hidden_dim, config.hidden_size * config.adapter_dim
+            self.hidden_dim, hidden_size * config.adapter_dim
         )
         self.weight_down = nn.Linear(
-            self.hidden_dim, config.hidden_size * config.adapter_dim
+            self.hidden_dim, hidden_size * config.adapter_dim
         )
-        self.bias_up = nn.Linear(self.hidden_dim, config.hidden_size)
+        self.bias_up = nn.Linear(self.hidden_dim, hidden_size)
         self.bias_down = nn.Linear(self.hidden_dim, config.adapter_dim)
         # init weights
         hyperfanin_init_weight(self.weight_up, self.hidden_dim, config.adapter_dim)
-        hyperfanin_init_weight(self.weight_down, self.hidden_dim, config.hidden_size)
+        hyperfanin_init_weight(self.weight_down, self.hidden_dim, hidden_size)
         hyperfanin_init_bias(self.bias_up, self.hidden_dim)
         hyperfanin_init_bias(self.bias_down, self.hidden_dim)
 
@@ -59,12 +59,12 @@ class SimpleGenerator(nn.Module):
 
 
 class ParameterGenerator(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, hidden_size):
         super().__init__()
         self.config = config
         self.location_embed = nn.Embedding(3, 10)  # ffn, attn, cross attn
         self.layer_embed = nn.Embedding(config.num_hidden_layers, 10)
-        self.decoder = SimpleGenerator(config, config.hidden_size + 20)
+        self.decoder = SimpleGenerator(config, config.hidden_size + 10, hidden_size)
 
     def forward(self, hidden_inputs):
         layers = []
@@ -83,9 +83,9 @@ class ParameterGenerator(nn.Module):
         for i in range(self.config.num_hidden_layers):
             layer_embed = self.layer_embed(layers_idxs[:, i])
             ffn_params = []
-            for j in range(3):
+            for j in range(1):
                 ffn_embed = self.location_embed(location_idxs[:, j])
-                hidden_input = torch.cat([hidden_inputs, layer_embed, ffn_embed], dim=1)
+                hidden_input = torch.cat([hidden_inputs, layer_embed], dim=1)
                 ffn_params.append(self.decoder(hidden_input))
             layers.append(ffn_params)
         return layers

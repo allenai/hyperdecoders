@@ -10,6 +10,7 @@ from transformers.models.t5.modeling_t5 import (
     T5EncoderModel,
     T5LayerSelfAttention,
     T5LayerCrossAttention,
+    T5Attention,
 )
 import torch
 from torch import nn
@@ -34,6 +35,134 @@ class T5WithAdapterConfig(T5Config):
         self.use_manual_adapters = use_manual_adapters
 
 
+class T5AttentionWithAdapter(T5Attention):
+    def __init__(self, config, has_relative_attention_bias=False):
+        super().__init__(config, has_relative_attention_bias=has_relative_attention_bias)
+        self.adapter_layer = AdapterLayer(
+            config.d_kv, config.adapter_dim,
+        )
+
+    def forward(
+        self,
+        hidden_states,
+        mask=None,
+        key_value_states=None,
+        position_bias=None,
+        past_key_value=None,
+        layer_head_mask=None,
+        query_length=None,
+        use_cache=False,
+        output_attentions=False,
+    ):
+        """
+        Self-attention (if key_value_states is None) or attention over source sentence (provided by key_value_states).
+        """
+        # Input is (batch_size, seq_length, dim)
+        # Mask is (batch_size, key_length) (non-causal) or (batch_size, key_length, key_length)
+        # past_key_value[0] is (batch_size, n_heads, q_len - 1, dim_per_head)
+        batch_size, seq_length = hidden_states.shape[:2]
+
+        real_seq_length = seq_length
+
+        if past_key_value is not None:
+            assert (
+                len(past_key_value) == 2
+            ), f"past_key_value should have 2 past states: keys and values. Got { len(past_key_value)} past states"
+            real_seq_length += past_key_value[0].shape[2] if query_length is None else query_length
+
+        key_length = real_seq_length if key_value_states is None else key_value_states.shape[1]
+
+        def shape(states):
+            """projection"""
+            return states.view(batch_size, -1, self.n_heads, self.key_value_proj_dim).transpose(1, 2)
+
+        def unshape(states):
+            """reshape"""
+            return states.transpose(1, 2).contiguous().view(batch_size, -1, self.inner_dim)
+
+        def project(hidden_states, proj_layer, key_value_states, past_key_value):
+            """projects hidden states correctly to key/query states"""
+            if key_value_states is None:
+                # self-attn
+                # (batch_size, n_heads, seq_length, dim_per_head)
+                hidden_states = shape(proj_layer(hidden_states))
+            elif past_key_value is None:
+                # cross-attn
+                # (batch_size, n_heads, seq_length, dim_per_head)
+                hidden_states = shape(proj_layer(key_value_states))
+
+            if past_key_value is not None:
+                if key_value_states is None:
+                    # self-attn
+                    # (batch_size, n_heads, key_length, dim_per_head)
+                    hidden_states = torch.cat([past_key_value, hidden_states], dim=2)
+                else:
+                    # cross-attn
+                    hidden_states = past_key_value
+            return hidden_states
+
+        # get query states
+        query_states = shape(self.q(hidden_states))  # (batch_size, n_heads, seq_length, dim_per_head)
+
+        
+
+        # get key/value states
+        key_states = project(
+            hidden_states, self.k, key_value_states, past_key_value[0] if past_key_value is not None else None
+        )
+        value_states = project(
+            hidden_states, self.v, key_value_states, past_key_value[1] if past_key_value is not None else None
+        )
+
+        # compute scores
+        scores = torch.matmul(
+            query_states, key_states.transpose(3, 2)
+        )  # equivalent of torch.einsum("bnqd,bnkd->bnqk", query_states, key_states), compatible with onnx op>9
+
+        if position_bias is None:
+            if not self.has_relative_attention_bias:
+                position_bias = torch.zeros(
+                    (1, self.n_heads, real_seq_length, key_length), device=scores.device, dtype=scores.dtype
+                )
+                if self.gradient_checkpointing and self.training:
+                    position_bias.requires_grad = True
+            else:
+                position_bias = self.compute_bias(real_seq_length, key_length)
+
+            # if key and values are already calculated
+            # we want only the last query position bias
+            if past_key_value is not None:
+                position_bias = position_bias[:, :, -hidden_states.size(1) :, :]
+
+            if mask is not None:
+                position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
+
+        scores += position_bias
+        attn_weights = nn.functional.softmax(scores.float(), dim=-1).type_as(
+            scores
+        )  # (batch_size, n_heads, seq_length, key_length)
+        attn_weights = nn.functional.dropout(
+            attn_weights, p=self.dropout, training=self.training
+        )  # (batch_size, n_heads, seq_length, key_length)
+
+        # Mask heads if we want to
+        if layer_head_mask is not None:
+            attn_weights = attn_weights * layer_head_mask
+
+        # we apply adapters to the attention output *per-head*
+        
+
+        attn_results = torch.matmul(attn_weights, value_states)
+        attn_output = unshape(attn_results + self.adapter_layer(value_states))  # (batch_size, seq_length, dim)
+        attn_output = self.o(attn_output)
+
+        present_key_value_state = (key_states, value_states) if (self.is_decoder and use_cache) else None
+        outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
+
+        if output_attentions:
+            outputs = outputs + (attn_weights,)
+        return outputs
+
 class T5LayerFFWithAdapter(T5LayerFF):
     def __init__(self, config):
         super().__init__(config)
@@ -55,7 +184,8 @@ class T5LayerSelfAttentionWithAdapter(T5LayerSelfAttention):
         super().__init__(
             config, has_relative_attention_bias=has_relative_attention_bias
         )
-        self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
+        self.SelfAttention = T5AttentionWithAdapter(config, has_relative_attention_bias=has_relative_attention_bias)
+        #self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
 
     def forward(
         self,
@@ -80,7 +210,7 @@ class T5LayerSelfAttentionWithAdapter(T5LayerSelfAttention):
         hidden_states = (
             hidden_states
             + self.dropout(attention_output[0])
-            + self.adapter_layer(normed_hidden_states)
+            #+ self.adapter_layer(normed_hidden_states)
         )
         outputs = (hidden_states,) + attention_output[
             1:
@@ -136,9 +266,9 @@ class T5BlockWithAdapter(T5Block):
         self.layer[0] = T5LayerSelfAttentionWithAdapter(
             config, has_relative_attention_bias=has_relative_attention_bias
         )
-        if self.is_decoder:
-            self.layer[1] = T5LayerCrossAttentionWithAdapter(config)
-        self.layer[-1] = T5LayerFFWithAdapter(config)
+        #if self.is_decoder:
+        #    self.layer[1] = T5LayerCrossAttentionWithAdapter(config)
+        #self.layer[-1] = T5LayerFFWithAdapter(config)
 
 
 class T5StackWithAdapter(T5Stack):
@@ -150,7 +280,7 @@ class T5StackWithAdapter(T5Stack):
                 for i in range(config.num_layers)
             ]
         )
-        self.param_gen = ParameterGenerator(config)
+        self.param_gen = ParameterGenerator(config, config.d_kv)
         self.mlp = nn.Sequential(
             nn.Linear(config.d_model, config.d_model),
             nn.ReLU(),
@@ -178,7 +308,9 @@ class T5StackWithAdapter(T5Stack):
     def clear_adapters(self):
         for block in self.block:
             for layer in block.layer:
-                if (
+                if isinstance(layer, T5LayerSelfAttentionWithAdapter):
+                    layer.SelfAttention.adapter_layer.clear_adapter()
+                elif (
                     isinstance(layer, T5LayerSelfAttentionWithAdapter)
                     or isinstance(layer, T5LayerCrossAttentionWithAdapter)
                     or isinstance(layer, T5LayerFFWithAdapter)
@@ -188,7 +320,9 @@ class T5StackWithAdapter(T5Stack):
     def apply_params_to_adapters(self, batch_size, generated_params):
         for param, block in zip(generated_params, self.block):
             for p, l in zip(param, block.layer):
-                if (
+                if isinstance(l, T5LayerSelfAttentionWithAdapter):
+                    l.SelfAttention.adapter_layer.apply_adapter_params(batch_size, *p)
+                elif (
                     isinstance(l, T5LayerSelfAttentionWithAdapter)
                     or isinstance(l, T5LayerCrossAttentionWithAdapter)
                     or isinstance(l, T5LayerFFWithAdapter)
