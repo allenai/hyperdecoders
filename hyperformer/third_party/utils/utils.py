@@ -773,7 +773,8 @@ class TaskCollator:
     def _encode(self, batch) -> Dict[str, torch.Tensor]:
         batch_encoding = self.tokenizer(
             [x["src_texts"] for x in batch],
-            max_length=self.data_args.max_source_length,
+            add_special_tokens=True,
+            max_length=self.data_args.max_source_length if self.data_args.max_source_length else self.tokenizer.model_max_length,
             padding="max_length"
             if self.tpu_num_cores is not None
             else "longest",  # TPU hack
@@ -782,7 +783,8 @@ class TaskCollator:
         with self.tokenizer.as_target_tokenizer():
             labels = self.tokenizer(
                 [x["tgt_texts"] for x in batch],
-                max_length=self.data_args.max_target_length,
+                add_special_tokens=True,
+                max_length=self.data_args.max_target_length if self.data_args.max_target_length else self.tokenizer.model_max_length,
                 padding="max_length"
                 if self.tpu_num_cores is not None
                 else "longest",  # TPU hack
