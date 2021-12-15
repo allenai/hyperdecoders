@@ -1,8 +1,8 @@
 {
-    "model_name_or_path": "t5-base",
-    "tokenizer_name": "t5-base",
+    "model_name_or_path": "google/t5-v1_1-base",
+    "tokenizer_name": "google/t5-v1_1-base",
     "learning_rate": 3e-4,
-    "output_dir": "outputs/mnli_only",
+    "output_dir": "/net/nfs2.allennlp/hamishi/hyperformer_outputs/mnli",
     "max_source_length": 128,
     "max_target_length": 128 ,
     "val_max_target_length":128,

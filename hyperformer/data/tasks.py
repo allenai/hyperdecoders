@@ -70,6 +70,7 @@ class AbstractTaskDataset(abc.ABC):
         "hellaswag",
         "sst2",
     ]
+    generation_task: bool = False # for loss scaling
 
     def __init__(self, seed=42):
         self.seed = seed
@@ -192,6 +193,11 @@ class AbstractTaskDataset(abc.ABC):
             "task": self.name,
         }
 
+    def get_label_size(self, tokenizer):
+        if self.generation_task:
+            return tokenizer.vocab_size
+        else:
+            return len(label_list)
 
 class IMDBTaskDataset(AbstractTaskDataset):
     name = "imdb"
@@ -926,6 +932,7 @@ class SquadDataset(AbstractTaskDataset):
         "test": "validation",
     }
     metrics = [metrics.squad_metrics]
+    generation_task = True
 
     def preprocessor(self, example, add_prefix=True):
         src_texts = ["question:", example["question"], "context:", example["context"]]
@@ -935,14 +942,28 @@ class SquadDataset(AbstractTaskDataset):
 
 class XSumTaskDataset(AbstractTaskDataset):
     name = "xsum"
-    task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 5}
+    task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 6}
     metrics = [metrics.rouge]
     split_to_data_split = {"train": "train", "validation": "validation", "test": "test"}
+    generation_task = True
 
     def preprocessor(self, example, add_prefix=True):
         src_texts = [example["document"]]
         tgt_texts = [str(example["summary"])]
-        return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, prefix='summarize:')
+
+
+class CnnDailyMailDataset(AbstractTaskDataset):
+    name = "cnn_dailymail"
+    task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 4}
+    metrics = [metrics.rouge]
+    split_to_data_split = {"train": "train", "validation": "validation", "test": "test"}
+    generation_task = True
+
+    def preprocessor(self, example, add_prefix=True):
+        src_texts = [example["document"]]
+        tgt_texts = [str(example["summary"])]
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, prefix='summarize:')
 
 
 TASK_MAPPING = OrderedDict(
@@ -981,6 +1002,7 @@ TASK_MAPPING = OrderedDict(
         ("sick", SickTaskDataset),
         ("squad", SquadDataset),
         ("xsum", XSumTaskDataset),
+        ("cnn_dailymail", CnnDailyMailDataset)
     ]
 )
 

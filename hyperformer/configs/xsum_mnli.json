@@ -1,8 +1,8 @@
 {
-    "model_name_or_path": "google/t5-v1_1-large",
-    "tokenizer_name": "google/t5-v1_1-large",
+    "model_name_or_path": "google/t5-v1_1-base",
+    "tokenizer_name": "google/t5-v1_1-base",
     "learning_rate": 3e-4,
-    "output_dir": "/net/nfs2.allennlp/hamishi/hyperformer_outputs/xsum_only_adapter",
+    "output_dir": "/net/nfs2.allennlp/hamishi/hyperformer_outputs/mnli_xsum",
     "max_source_length": 512,
     "max_target_length": 128 ,
     "val_max_target_length":128,
@@ -11,9 +11,9 @@
     "warmup_steps": 500,
     "overwrite_output_dir": true,
     "label_smoothing": 0.1,
-    "per_device_train_batch_size": 16,
-    "per_device_eval_batch_size": 16,
-    "gradient_accumulation_steps": 2,
+    "per_device_train_batch_size": 32,
+    "per_device_eval_batch_size": 32,
+    "gradient_accumulation_steps": 1,
     "logging_first_step":true,
     "logging_steps": 200,
     "save_total_limit": 1,
@@ -29,10 +29,10 @@
     "eval_steps": 5000,
     "metric_for_best_model": "average_metrics",
     "greater_is_better": true,
-    "max_steps": 100000,
+    "max_steps": 200000,
     "print_num_parameters": true,
     
-    "tasks": ["xsum"],
-    "eval_tasks": ["xsum"]
+    "tasks": ["xsum", "mnli"],
+    "eval_tasks": ["xsum", "mnli"]
     }
     

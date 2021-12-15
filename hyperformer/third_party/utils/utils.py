@@ -47,7 +47,7 @@ except (ImportError, ModuleNotFoundError):
     FAIRSEQ_AVAILABLE = False
 
 
-def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=-100):
+def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=-100, reduce=True):
     """From fairseq"""
     if target.dim() == lprobs.dim() - 1:
         target = target.unsqueeze(-1)
@@ -60,9 +60,9 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=-100):
     else:
         nll_loss = nll_loss.squeeze(-1)
         smooth_loss = smooth_loss.squeeze(-1)
-
-    nll_loss = nll_loss.sum()  # mean()? Scared to break other math.
-    smooth_loss = smooth_loss.sum()
+    if reduce:
+        nll_loss = nll_loss.sum()
+        smooth_loss = smooth_loss.sum()
     eps_i = epsilon / lprobs.size(-1)
     loss = (1.0 - epsilon) * nll_loss + eps_i * smooth_loss
     return loss, nll_loss
@@ -736,7 +736,7 @@ def check_output_dir(args, expected_items=0):
 class TaskCollator:
     """Implements task-collator to collate the samples in each batch."""
 
-    def __init__(self, tokenizer, data_args, tpu_num_cores=None):
+    def __init__(self, tokenizer, data_args, task_weights, tpu_num_cores=None):
         self.tokenizer = tokenizer
         self.pad_token_id = tokenizer.pad_token_id
         assert (
@@ -744,6 +744,7 @@ class TaskCollator:
         ), f"pad_token_id is not defined for ({self.tokenizer.__class__.__name__}), it must be defined."
         self.data_args = data_args
         self.tpu_num_cores = tpu_num_cores
+        self.task_weights = task_weights
 
     def __call__(self, batch) -> Dict[str, torch.Tensor]:
         # because of padding="longest" this does not work to be done in dataset part.
@@ -759,7 +760,7 @@ class TaskCollator:
             "attention_mask": attention_mask,
             "decoder_input_ids": decoder_input_ids,
             "labels": labels,
-            # "tasks": batch["tasks"], # this might be useful in the future but my experiments dont need
+            "task_weights": batch["task_weights"], # this might be useful in the future but my experiments dont need
         }
         return output_batch
 
@@ -771,24 +772,15 @@ class TaskCollator:
         return shifted_input_ids
 
     def _encode(self, batch) -> Dict[str, torch.Tensor]:
-        batch_encoding = self.tokenizer(
+        batch_encoding = self.tokenizer.prepare_seq2seq_batch(
             [x["src_texts"] for x in batch],
+            tgt_texts=[x["tgt_texts"] for x in batch],
             max_length=self.data_args.max_source_length,
-            padding="max_length"
-            if self.tpu_num_cores is not None
-            else "longest",  # TPU hack
-            return_tensors="pt",
+            max_target_length=self.data_args.max_target_length,
+            padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
+            return_tensors="pt"
         )
-        with self.tokenizer.as_target_tokenizer():
-            labels = self.tokenizer(
-                [x["tgt_texts"] for x in batch],
-                max_length=self.data_args.max_target_length,
-                padding="max_length"
-                if self.tpu_num_cores is not None
-                else "longest",  # TPU hack
-                return_tensors="pt",
-            )
-        batch_encoding["labels"] = labels["input_ids"]
         tasks = [x["task"] for x in batch]
         batch_encoding["tasks"] = tasks
+        batch_encoding['task_weights'] = [self.task_weights[t] for t in tasks]
         return batch_encoding.data

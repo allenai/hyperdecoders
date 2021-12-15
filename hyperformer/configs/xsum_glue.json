@@ -2,7 +2,7 @@
     "model_name_or_path": "google/t5-v1_1-large",
     "tokenizer_name": "google/t5-v1_1-large",
     "learning_rate": 3e-4,
-    "output_dir": "/net/nfs2.allennlp/hamishi/hyperformer_outputs/xsum_only_adapter",
+    "output_dir": "/net/nfs2.allennlp/hamishi/hyperformer_outputs/xsum",
     "max_source_length": 512,
     "max_target_length": 128 ,
     "val_max_target_length":128,
@@ -29,10 +29,10 @@
     "eval_steps": 5000,
     "metric_for_best_model": "average_metrics",
     "greater_is_better": true,
-    "max_steps": 100000,
+    "max_steps": 300000,
     "print_num_parameters": true,
     
-    "tasks": ["xsum"],
-    "eval_tasks": ["xsum"]
+    "tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola", "xsum"], 
+    "eval_tasks": ["rte", "sst2", "mrpc", "stsb", "qqp", "mnli", "qnli", "cola", "xsum"]
     }
     

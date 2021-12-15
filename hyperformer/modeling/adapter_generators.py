@@ -30,7 +30,7 @@ class SimpleGenerator(nn.Module):
 
         self.input_dim = input_dim
         self.hidden_dim = config.generator_hdim
-        self.linear1 = linear(self.input_dim, self.hidden_dim)
+        self.linear1 = nn.Linear(self.input_dim, self.hidden_dim)
         self.activation_fn = nn.ReLU()
         # output weights
         self.weight_up = nn.Linear(

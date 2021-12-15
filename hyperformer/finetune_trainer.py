@@ -111,6 +111,7 @@ def main():
         model_class = BartForConditionalGenerationWithAdapter
         config_class = BartWithAdapterConfig
     else:
+        from transformers import T5Config, T5ForConditionalGeneration
         model_class = T5ForConditionalGenerationWithAdapter
         config_class = T5WithAdapterConfig
 
@@ -196,7 +197,7 @@ def main():
         {
             task: dataset_class.get(task, seed=data_args.data_seed).get_dataset(
                 split="validation",
-                n_obs=data_args.n_val,
+                n_obs=1600 if task == 'xsum' else data_args.n_val,
                 add_prefix=True,
                 split_validation_test=training_args.split_validation_test,
             )
@@ -219,6 +220,12 @@ def main():
         if training_args.do_test
         else None
     )
+
+    # setup loss weighting for tasks, using muppet system
+    task_weights = {
+        task: dataset_class.get(task).get_label_size() for task in data_args.eval_tasks + data_args.tasks
+    }
+
     # Defines the metrics for evaluation.
     compute_metrics_fn = (
         build_compute_metrics_fn(data_args.eval_tasks, tokenizer)
@@ -233,7 +240,7 @@ def main():
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_datasets,
         data_collator=TaskCollator(
-            tokenizer, data_args, tpu_num_cores=training_args.tpu_num_cores
+            tokenizer, data_args, tpu_num_cores=training_args.tpu_num_cores, task_weights=task_weights
         ),
         compute_metrics=None,
         multi_task_compute_metrics=compute_metrics_fn,
@@ -309,7 +316,7 @@ def main():
                 train_dataset=train_dataset if training_args.do_train else None,
                 eval_dataset=eval_datasets,
                 data_collator=TaskCollator(
-                    tokenizer, data_args, tpu_num_cores=training_args.tpu_num_cores
+                    tokenizer, data_args, tpu_num_cores=training_args.tpu_num_cores, task_weights=task_weights
                 ),
                 compute_metrics=None,
                 multi_task_compute_metrics=compute_metrics_fn,
