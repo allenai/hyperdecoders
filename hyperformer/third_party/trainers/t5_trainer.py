@@ -209,8 +209,7 @@ class T5Trainer(Trainer):
         )
 
     def _compute_loss(self, model, inputs, labels):
-        import pdb; pdb.set_trace()
-        task_weights = inputs.pop('task_weights')
+        task_weights = torch.tensor(inputs.pop('task_weights'), device=model.device)
         if self.args.label_smoothing == 0:
             if self.data_args is not None and self.data_args.ignore_pad_token_for_loss:
                 # force training to ignore pad token
@@ -231,7 +230,7 @@ class T5Trainer(Trainer):
                 ignore_index=self.config.pad_token_id,
                 reduce=False
             )
-            loss = (loss / task_weights).mean()
+            loss = (loss / task_weights.view(-1, 1, 1)).mean()
         return loss, logits
 
     def get_train_dataloader(self) -> DataLoader:

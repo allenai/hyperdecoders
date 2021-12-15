@@ -223,7 +223,7 @@ def main():
 
     # setup loss weighting for tasks, using muppet system
     task_weights = {
-        task: dataset_class.get(task).get_label_size() for task in data_args.eval_tasks + data_args.tasks
+        task: dataset_class.get(task).get_label_size(tokenizer) for task in data_args.eval_tasks + data_args.tasks
     }
 
     # Defines the metrics for evaluation.

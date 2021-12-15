@@ -197,7 +197,7 @@ class AbstractTaskDataset(abc.ABC):
         if self.generation_task:
             return tokenizer.vocab_size
         else:
-            return len(label_list)
+            return len(self.label_list)
 
 class IMDBTaskDataset(AbstractTaskDataset):
     name = "imdb"
