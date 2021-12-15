@@ -95,7 +95,7 @@ def build_compute_metrics_fn(
 
     def decode_pred(pred: EvalPrediction) -> Tuple[List[str], List[str]]:
         pred_str = tokenizer.batch_decode(pred.predictions, skip_special_tokens=True)
-        pred.label_ids[pred.label_ids < 0] = 0 # we replaced some w/ -100 for reasons
+        pred.label_ids[pred.label_ids < 0] = 0
         label_str = tokenizer.batch_decode(pred.label_ids, skip_special_tokens=True)
         pred_str = lmap(str.strip, pred_str)
         label_str = lmap(str.strip, label_str)
