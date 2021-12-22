@@ -799,7 +799,7 @@ class SocialIQaTaskDataset(AbstractTaskDataset):
             "answerC:",
             example["answerC"],
         ]
-        tgt_texts = [self.label_map[example["label"].rstrip()]]
+        tgt_texts = [example["label"].rstrip()]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
 
 
@@ -892,8 +892,7 @@ class HellaSwagTaskDataset(AbstractTaskDataset):
 
 class CommonsenseQaTaskDataset(AbstractTaskDataset):
     name = "commonsense_qa"
-    label_map = {"A": "0", "B": "1", "C": "2", "D": "3", "E": "4"}
-    label_list = ["0", "1", "2", "3", "4"]  # ["A", "B", "C", "D", "E"]
+    label_list = ["A", "B", "C", "D", "E"]
     task_specific_config = {"max_length": compute_task_max_decoding_length(label_list)}
     metrics = [metrics.accuracy]
     split_to_data_split = {
@@ -917,7 +916,7 @@ class CommonsenseQaTaskDataset(AbstractTaskDataset):
             "E:",
             example["choices"]["text"][4],
         ]
-        tgt_texts = [str(self.label_map[example["answerKey"]])]
+        tgt_texts = [example["answerKey"]]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
 
 

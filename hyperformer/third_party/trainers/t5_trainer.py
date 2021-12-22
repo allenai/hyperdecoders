@@ -116,7 +116,7 @@ class T5Trainer(Trainer):
 
         if self.args.label_smoothing == 0:
             self.loss_fn = torch.nn.CrossEntropyLoss(
-                ignore_index=self.config.pad_token_id, reduction='None'
+                ignore_index=self.config.pad_token_id#, reduction='None'
             )
         else:
             # dynamically import label_smoothed_nll_loss
@@ -215,7 +215,7 @@ class T5Trainer(Trainer):
                 # force training to ignore pad token
                 logits = model(**inputs, use_cache=False)[0]
                 loss = self.loss_fn(logits.view(-1, logits.shape[-1]), labels.view(-1))
-                loss = (loss / task_weights).mean()
+                # loss = (loss / task_weights).mean()
             else:
                 # compute usual loss via models
                 loss, logits = model(**inputs, labels=labels, use_cache=False)[:2]
@@ -228,9 +228,9 @@ class T5Trainer(Trainer):
                 labels,
                 self.args.label_smoothing,
                 ignore_index=self.config.pad_token_id,
-                reduce=False
+                # reduce=False
             )
-            loss = (loss / task_weights.view(-1, 1, 1)).mean()
+            # loss = (loss / task_weights.view(-1, 1, 1)).mean()
         return loss, logits
 
     def get_train_dataloader(self) -> DataLoader:
