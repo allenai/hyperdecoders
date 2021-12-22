@@ -70,7 +70,7 @@ class AbstractTaskDataset(abc.ABC):
         "hellaswag",
         "sst2",
     ]
-    generation_task: bool = False # for loss scaling
+    generation_task: bool = False  # for loss scaling
 
     def __init__(self, seed=42):
         self.seed = seed
@@ -198,6 +198,7 @@ class AbstractTaskDataset(abc.ABC):
             return tokenizer.vocab_size
         else:
             return len(self.label_list)
+
 
 class IMDBTaskDataset(AbstractTaskDataset):
     name = "imdb"
@@ -949,7 +950,9 @@ class XSumTaskDataset(AbstractTaskDataset):
     def preprocessor(self, example, add_prefix=True):
         src_texts = [example["document"]]
         tgt_texts = [str(example["summary"])]
-        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, prefix='summarize:')
+        return self.seq2seq_format(
+            src_texts, tgt_texts, add_prefix, prefix="summarize:"
+        )
 
 
 class CnnDailyMailDataset(AbstractTaskDataset):
@@ -962,7 +965,9 @@ class CnnDailyMailDataset(AbstractTaskDataset):
     def preprocessor(self, example, add_prefix=True):
         src_texts = [example["document"]]
         tgt_texts = [str(example["summary"])]
-        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, prefix='summarize:')
+        return self.seq2seq_format(
+            src_texts, tgt_texts, add_prefix, prefix="summarize:"
+        )
 
 
 TASK_MAPPING = OrderedDict(
@@ -1001,7 +1006,7 @@ TASK_MAPPING = OrderedDict(
         ("sick", SickTaskDataset),
         ("squad", SquadDataset),
         ("xsum", XSumTaskDataset),
-        ("cnn_dailymail", CnnDailyMailDataset)
+        ("cnn_dailymail", CnnDailyMailDataset),
     ]
 )
 

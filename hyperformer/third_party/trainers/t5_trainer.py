@@ -53,7 +53,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 from torch.utils.data.dataset import Dataset
 
 from utils import use_task_specific_params, reset_config
-from data import MultiTaskBatchSampler
+from data import MultiTaskBatchSampler, MultiTaskIntraBatchSampler
 
 logger = logging.get_logger(__name__)
 
@@ -116,7 +116,8 @@ class T5Trainer(Trainer):
 
         if self.args.label_smoothing == 0:
             self.loss_fn = torch.nn.CrossEntropyLoss(
-                ignore_index=self.config.pad_token_id#, reduction='None'
+                ignore_index=self.config.pad_token_id,
+                reduction="None" if self.args.loss_scaling else "mean",
             )
         else:
             # dynamically import label_smoothed_nll_loss
@@ -200,7 +201,7 @@ class T5Trainer(Trainer):
         else:
             num_replicas = 1
             rank = 0
-        return MultiTaskBatchSampler(
+        return MultiTaskIntraBatchSampler(
             self.dataset_sizes,
             self.args.train_batch_size,
             self.args.temperature,
@@ -209,7 +210,7 @@ class T5Trainer(Trainer):
         )
 
     def _compute_loss(self, model, inputs, labels):
-        task_weights = torch.tensor(inputs.pop('task_weights'), device=model.device)
+        task_weights = torch.tensor(inputs.pop("task_weights"), device=model.device)
         if self.args.label_smoothing == 0:
             if self.data_args is not None and self.data_args.ignore_pad_token_for_loss:
                 # force training to ignore pad token
@@ -228,9 +229,10 @@ class T5Trainer(Trainer):
                 labels,
                 self.args.label_smoothing,
                 ignore_index=self.config.pad_token_id,
-                # reduce=False
+                reduce=False if self.args.loss_scaling else True,
             )
-            # loss = (loss / task_weights.view(-1, 1, 1)).mean()
+        if self.args.loss_scaling:
+            loss = (loss / task_weights.view(-1, 1, 1)).mean()
         return loss, logits
 
     def get_train_dataloader(self) -> DataLoader:
@@ -519,6 +521,9 @@ class T5Trainer(Trainer):
             if isinstance(train_dataloader, DataLoader) and (
                 isinstance(train_dataloader.sampler, DistributedSampler)
                 or isinstance(train_dataloader.batch_sampler, MultiTaskBatchSampler)
+                or isinstance(
+                    train_dataloader.batch_sampler, MultiTaskIntraBatchSampler
+                )
             ):
                 if isinstance(train_dataloader.sampler, DistributedSampler):
                     train_dataloader.sampler.set_epoch(epoch)

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import dataclasses
 
 from transformers import (
     AutoTokenizer,
@@ -112,6 +113,7 @@ def main():
         config_class = BartWithAdapterConfig
     else:
         from transformers import T5Config, T5ForConditionalGeneration
+
         model_class = T5ForConditionalGenerationWithAdapter
         config_class = T5WithAdapterConfig
 
@@ -126,6 +128,8 @@ def main():
         else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
+    config.update(dataclasses.asdict(adapter_args))
+    config.update({"tasks": data_args.tasks + data_args.eval_tasks})
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name
@@ -197,7 +201,7 @@ def main():
         {
             task: dataset_class.get(task, seed=data_args.data_seed).get_dataset(
                 split="validation",
-                n_obs=1600 if task == 'xsum' else data_args.n_val,
+                n_obs=1 if task == "xsum" else data_args.n_val,
                 add_prefix=True,
                 split_validation_test=training_args.split_validation_test,
             )
@@ -223,7 +227,8 @@ def main():
 
     # setup loss weighting for tasks, using muppet system
     task_weights = {
-        task: dataset_class.get(task).get_label_size(tokenizer) for task in data_args.eval_tasks + data_args.tasks
+        task: dataset_class.get(task).get_label_size(tokenizer)
+        for task in data_args.eval_tasks + data_args.tasks
     }
 
     # Defines the metrics for evaluation.
@@ -240,7 +245,10 @@ def main():
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_datasets,
         data_collator=TaskCollator(
-            tokenizer, data_args, tpu_num_cores=training_args.tpu_num_cores, task_weights=task_weights
+            tokenizer,
+            data_args,
+            tpu_num_cores=training_args.tpu_num_cores,
+            task_weights=task_weights,
         ),
         compute_metrics=None,
         multi_task_compute_metrics=compute_metrics_fn,
@@ -316,7 +324,10 @@ def main():
                 train_dataset=train_dataset if training_args.do_train else None,
                 eval_dataset=eval_datasets,
                 data_collator=TaskCollator(
-                    tokenizer, data_args, tpu_num_cores=training_args.tpu_num_cores, task_weights=task_weights
+                    tokenizer,
+                    data_args,
+                    tpu_num_cores=training_args.tpu_num_cores,
+                    task_weights=task_weights,
                 ),
                 compute_metrics=None,
                 multi_task_compute_metrics=compute_metrics_fn,

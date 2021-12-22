@@ -760,7 +760,8 @@ class TaskCollator:
             "attention_mask": attention_mask,
             "decoder_input_ids": decoder_input_ids,
             "labels": labels,
-            "task_weights": batch["task_weights"], # this might be useful in the future but my experiments dont need
+            "task_weights": batch["task_weights"],
+            "tasks": batch["tasks"],
         }
         return output_batch
 
@@ -777,10 +778,12 @@ class TaskCollator:
             tgt_texts=[x["tgt_texts"] for x in batch],
             max_length=self.data_args.max_source_length,
             max_target_length=self.data_args.max_target_length,
-            padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
-            return_tensors="pt"
+            padding="max_length"
+            if self.tpu_num_cores is not None
+            else "longest",  # TPU hack
+            return_tensors="pt",
         )
         tasks = [x["task"] for x in batch]
         batch_encoding["tasks"] = tasks
-        batch_encoding['task_weights'] = [self.task_weights[t] for t in tasks]
+        batch_encoding["task_weights"] = [self.task_weights[t] for t in tasks]
         return batch_encoding.data

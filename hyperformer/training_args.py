@@ -35,6 +35,10 @@ class Seq2SeqTrainingArguments(TrainingArguments):
         default=0.0,
         metadata={"help": "The label smoothing epsilon to apply (if not zero)."},
     )
+    loss_scaling: Optional[bool] = field(
+        default=True,
+        metadata={"help": "Whether to scale loss by number of tokens."},
+    )
     predict_with_generate: bool = field(
         default=False,
         metadata={
@@ -275,16 +279,13 @@ class DataTrainingArguments:
 class AdapterTrainingArguments:
     """Defines the adapters parameters."""
 
-    use_adapters: bool = field(
-        default=True, metadata={"help": "Whether to use adapters."}
+    encoder_adapter: Optional[str] = field(
+        default="task", metadata={"help": "The encoder adapter to use."}
     )
-    use_manual_adapters: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to use non-generated adapters instead of generated ones."
-        },
+    decoder_adapter: Optional[str] = field(
+        default="task", metadata={"help": "The decoder adapter to use."}
     )
-    adapter_hidden_param: Optional[int] = field(
+    adapter_dim: Optional[int] = field(
         default=64, metadata={"help": "size of adapters themselves."}
     )
     hypernetwork_bottleneck: Optional[int] = field(

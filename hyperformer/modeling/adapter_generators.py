@@ -29,16 +29,12 @@ class SimpleGenerator(nn.Module):
         super().__init__()
 
         self.input_dim = input_dim
-        self.hidden_dim = config.generator_hdim
+        self.hidden_dim = config.hypernetwork_bottleneck
         self.linear1 = nn.Linear(self.input_dim, self.hidden_dim)
         self.activation_fn = nn.ReLU()
         # output weights
-        self.weight_up = nn.Linear(
-            self.hidden_dim, hidden_size * config.adapter_dim
-        )
-        self.weight_down = nn.Linear(
-            self.hidden_dim, hidden_size * config.adapter_dim
-        )
+        self.weight_up = nn.Linear(self.hidden_dim, hidden_size * config.adapter_dim)
+        self.weight_down = nn.Linear(self.hidden_dim, hidden_size * config.adapter_dim)
         self.bias_up = nn.Linear(self.hidden_dim, hidden_size)
         self.bias_down = nn.Linear(self.hidden_dim, config.adapter_dim)
         # init weights
