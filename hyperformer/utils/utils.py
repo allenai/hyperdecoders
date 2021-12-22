@@ -88,7 +88,7 @@ def use_task_specific_params(model, task):
 
 def reset_config(model, config):
     """Resets the config file to the one provided."""
-    model.config = config
+    model.config = model.config.from_dict(config)
     logger.info(f"config is reset to the initial values.")
 
 

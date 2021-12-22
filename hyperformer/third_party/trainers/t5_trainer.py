@@ -281,7 +281,7 @@ class T5Trainer(Trainer):
 
         for eval_task, eval_dataset in eval_datasets.items():
             self.compute_metrics = self.multi_task_compute_metrics[eval_task]
-            model_config = self.model.config
+            model_config = self.model.config.to_dict()
 
             use_task_specific_params(self.model, eval_task)
 
@@ -687,8 +687,8 @@ class T5Trainer(Trainer):
         """
         inputs = self._prepare_inputs(inputs)
         gen_kwargs = {
-            "max_length": self.config.max_length,
-            "num_beams": self.config.num_beams,
+            "max_length": self.model.config.max_length,
+            "num_beams": self.model.config.num_beams,
         }
         # gen_kwargs["task"] = inputs["task"]
         if self.args.predict_with_generate and not self.args.prediction_loss_only:
