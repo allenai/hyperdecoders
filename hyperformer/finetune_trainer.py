@@ -32,7 +32,7 @@ from training_args import (
     DataTrainingArguments,
     AdapterTrainingArguments,
 )
-from utils import get_last_checkpoint_path, freeze_model, unfreeze_adapter_params
+from utils import get_last_checkpoint_path, freeze_model, unfreeze_adapter_params_encoder, unfreeze_adapter_params_decoder, unfreeze_encoder, unfreeze_decoder
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,10 @@ def main():
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO if training_args.local_rank in [-1, 0] else logging.WARN,
+        filename=os.path.join(training_args.output_dir, "log.txt"),
+        filemode='w'
     )
+    logger.addHandler(logging.StreamHandler(sys.stdout))
     logger.warning(
         "Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, 16-bits training: %s",
         training_args.local_rank,
@@ -129,7 +132,7 @@ def main():
         cache_dir=model_args.cache_dir,
     )
     config.update(dataclasses.asdict(adapter_args))
-    config.update({"tasks": data_args.tasks + data_args.eval_tasks})
+    config.update({"tasks": list(set(data_args.tasks + data_args.eval_tasks))})
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name
@@ -167,9 +170,16 @@ def main():
         data_args.eval_beams = model.config.num_beams
 
     # freezing the parameters.
-    if training_args.freeze_parameters:
+    if model_args.freeze_model:
         freeze_model(model)
-        unfreeze_adapter_params(model)
+    if model_args.unfreeze_encoder_adapters:
+        unfreeze_adapter_params_encoder(model)
+    if model_args.unfreeze_decoder_adapters:
+        unfreeze_adapter_params_decoder(model)
+    if model_args.unfreeze_encoder:
+        unfreeze_encoder(model)
+    if model_args.unfreeze_decoder:
+        unfreeze_decoder(model)
 
     if training_args.print_num_parameters:
         logger.info(model)
@@ -201,7 +211,7 @@ def main():
         {
             task: dataset_class.get(task, seed=data_args.data_seed).get_dataset(
                 split="validation",
-                n_obs=1 if task == "xsum" else data_args.n_val,
+                n_obs=1600 if task == "xsum" else data_args.n_val,
                 add_prefix=True,
                 split_validation_test=training_args.split_validation_test,
             )

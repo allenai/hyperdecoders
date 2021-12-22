@@ -13,7 +13,7 @@ from torch.utils.data.distributed import DistributedSampler
 from transformers import PreTrainedModel, logging
 from transformers import Trainer
 from transformers import FSMTConfig
-from transformers.file_utils import is_torch_tpu_available
+from transformers.file_utils import is_torch_tpu_available, WEIGHTS_NAME
 from transformers.integrations import hp_params
 from transformers.optimization import (
     Adafactor,
@@ -637,7 +637,6 @@ class T5Trainer(Trainer):
             "\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n"
         )
 
-        """
         if self.args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
             logger.info(
                 f"Loading best model from {self.state.best_model_checkpoint} (score: {self.state.best_metric})."
@@ -648,7 +647,6 @@ class T5Trainer(Trainer):
             else:
                 state_dict = torch.load(os.path.join(self.state.best_model_checkpoint, WEIGHTS_NAME))
                 self.model.load_state_dict(state_dict)
-        """
 
         if self._total_flos is not None:
             self.store_flos()
@@ -695,7 +693,7 @@ class T5Trainer(Trainer):
             "max_length": self.model.config.max_length,
             "num_beams": self.model.config.num_beams,
         }
-        # gen_kwargs["task"] = inputs["task"]
+        gen_kwargs["tasks"] = inputs["tasks"]
         if self.args.predict_with_generate and not self.args.prediction_loss_only:
             generated_tokens = self.model.generate(
                 inputs["input_ids"],

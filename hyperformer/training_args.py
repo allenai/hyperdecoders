@@ -80,9 +80,6 @@ class Seq2SeqTrainingArguments(TrainingArguments):
         default=False,
         metadata={"help": "Whether to comptue evaluation metrics on the test sets."},
     )
-    freeze_parameters: bool = field(
-        default=True, metadata={"help": "Freeze model apart from adapters"}
-    )
     eval_output_dir: Optional[str] = field(
         default=None,
         metadata={
@@ -166,33 +163,20 @@ class ModelArguments:
             "help": "Where do you want to store the pretrained models downloaded from s3"
         },
     )
-    freeze_encoder: bool = field(
-        default=False, metadata={"help": "Whether tp freeze the encoder."}
-    )
-    freeze_embeds: bool = field(
-        default=False, metadata={"help": "Whether  to freeze the embeddings."}
-    )
     freeze_model: bool = field(
-        default=False, metadata={"help": "Whether  to freeze the model."}
+        default=True, metadata={"help": "Whether  to freeze the model."}
     )
-    freeze_model_but_lm_head: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to freeze the"
-            "whole model and only keep the language model head as the training parameter."
-        },
+    unfreeze_encoder_adapters: bool = field(
+        default=True, metadata={"help": "Whether to unfreeze the encoder adapters."}
     )
-    unfreeze_lm_head: bool = field(
-        default=False, metadata={"help": "Whether  to unfreeze the lm_head."}
+    unfreeze_decoder_adapters: bool = field(
+        default=True, metadata={"help": "Whether to unfreeze the decoder adapters."}
     )
-    freeze_model_but_task_embeddings: bool = field(
-        default=False, metadata={"help": "freezes the whole model but task-embedding."}
+    unfreeze_encoder: bool = field(
+        default=False, metadata={"help": "Whether to unfreeze the encoder."}
     )
-    unfreeze_layer_norms: bool = field(
-        default=False, metadata={"help": "unfreezes the layer norms."}
-    )
-    unfreeze_model: bool = field(
-        default=False, metadata={"help": "Whether  to unfreeze the model."}
+    unfreeze_decoder: bool = field(
+        default=False, metadata={"help": "Whether to unfreeze the decoder."}
     )
 
 

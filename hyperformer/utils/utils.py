@@ -97,7 +97,22 @@ def freeze_model(model):
     freeze_params(model)
 
 
-def unfreeze_adapter_params(model):
+def unfreeze_adapter_params_encoder(model):
     for name, param in model.named_parameters():
-        if "adapter" in name or "mlp" in name or "param_gen" in name:
+        if ("adapter" in name or "mlp" in name or "param_gen" in name) and "encoder" in name:
+            param.requires_grad = True
+
+def unfreeze_adapter_params_decoder(model):
+    for name, param in model.named_parameters():
+        if ("adapter" in name or "mlp" in name or "param_gen" in name) and "decoder" in name:
+            param.requires_grad = True
+
+def unfreeze_encoder(model):
+    for name, param in model.named_parameters():
+        if "encoder" in name:
+            param.requires_grad = True
+
+def unfreeze_decoder(model):
+    for name, param in model.named_parameters():
+        if "decoder" in name:
             param.requires_grad = True
