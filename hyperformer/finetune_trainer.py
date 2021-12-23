@@ -86,12 +86,14 @@ def main():
     check_output_dir(training_args)
 
     # Setup logging
+    # logfile output folders must exist before telling the logger to output there
+    os.makedirs(training_args.output_dir, exist_ok=True)
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO if training_args.local_rank in [-1, 0] else logging.WARN,
         filename=os.path.join(training_args.output_dir, "log.txt"),
-        filemode='w'
+        filemode='w+'
     )
     logger.addHandler(logging.StreamHandler(sys.stdout))
     logger.warning(
@@ -307,43 +309,6 @@ def main():
                 os.path.join(training_args.output_dir, "trainer_state.json")
             )
             tokenizer.save_pretrained(training_args.output_dir)
-
-    # Evaluation
-    if training_args.do_eval or training_args.do_test:
-        if trainer.is_world_process_zero():
-            # By default we load  the model from last checkpoint path,
-            # in case of saving the model with the best metrics, make sure to
-            # set save_total = 1 so the best model is loaded here.
-            # if not exists returns the path to the output_dir.
-            last_checkpoint_path = get_last_checkpoint_path(training_args.output_dir)
-            config = config_class.from_pretrained(
-                last_checkpoint_path, cache_dir=model_args.cache_dir
-            )
-            model = model_class.from_pretrained(
-                last_checkpoint_path,
-                from_tf=".ckpt" in training_args.output_dir,
-                config=config,
-                cache_dir=model_args.cache_dir,
-            )
-            # NOTE: if trainer is not re-defined, there is a bug in the codes, that making
-            # huggingface codes does not using the best checkpoint.
-            trainer = T5Trainer(
-                model=model,
-                config=config,
-                args=training_args,
-                train_dataset=train_dataset if training_args.do_train else None,
-                eval_dataset=eval_datasets,
-                data_collator=TaskCollator(
-                    tokenizer,
-                    data_args,
-                    tpu_num_cores=training_args.tpu_num_cores,
-                    task_weights=task_weights,
-                ),
-                compute_metrics=None,
-                multi_task_compute_metrics=compute_metrics_fn,
-                data_args=data_args,
-                dataset_sizes=dataset_sizes if training_args.do_train else None,
-            )
 
     if training_args.do_eval:
         trainer.evaluate()

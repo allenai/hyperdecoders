@@ -642,7 +642,7 @@ class T5Trainer(Trainer):
                 f"Loading best model from {self.state.best_model_checkpoint} (score: {self.state.best_metric})."
             )
             if isinstance(model, PreTrainedModel):
-                self.model = model.from_pretrained(self.state.best_model_checkpoint, adapter_config=self.adapter_config)
+                self.model = model.from_pretrained(self.state.best_model_checkpoint)
                 self.model = self.model.to(self.args.device)
             else:
                 state_dict = torch.load(os.path.join(self.state.best_model_checkpoint, WEIGHTS_NAME))
