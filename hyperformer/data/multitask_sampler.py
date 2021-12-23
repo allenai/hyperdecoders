@@ -9,12 +9,6 @@ from typing import TypeVar, Optional, List
 
 T_co = TypeVar("T_co", covariant=True)
 
-# TODO: edit this for sample styles, or copy the class across a few cases
-# case 1: temperature on task level-based sampling, as currently is
-# case 2: pure mixing everything, no trying to mess w/ dist
-#
-
-
 class MultiTaskBatchSampler(Sampler[T_co]):
     """Defines a sampler to sample multiple datasets with temperature sampling
     in a distributed fashion."""
@@ -154,45 +148,13 @@ class MultiTaskBatchSampler(Sampler[T_co]):
         self.epoch = epoch
 
 
-class MultiTaskIntraBatchSampler(MultiTaskBatchSampler[T_co]):
-    """Defines a sampler to sample multiple datasets with temperature sampling
-    with multiple tasks in the same batch guaranteed."""
-
-    def __iter__(self):
-        # Defines torch generator, to make random choices consistent across cores in
-        # different epochs, the seed needs to be set based on seed and epoch.
-        generator = torch.Generator()
-        generator.manual_seed(self.seed + self.epoch)
-
-        # Shuffles the datasets if shuffle is set to true.
-        indices = []
-        for dataset_size in self.dataset_sizes:
-            if self.shuffle:
-                indices.append(
-                    torch.randperm(dataset_size, generator=generator).tolist()
-                )
-            else:
-                indices.append(list(range(dataset_size)))
-
-        # Shards the datasets across the all processes.
-        self.rank_indices = []
-        for i in range(len(self.dataset_sizes)):
-            self.rank_indices.append(
-                indices[i][self.rank : self.total_sizes[i] : self.num_replicas]
-            )
-
-        # we just evenly divide tasks within batches
-        for _ in range(self.num_batches_per_epoch):
-            results = []
-            for i, task_size in enumerate(self.dataset_sizes):
-                indices = torch.randint(
-                    low=0,
-                    high=task_size,
-                    size=(self.batch_size // len(self.dataset_sizes),),
-                    generator=generator,
-                ).tolist()
-                results += (
-                    self.dataset_offsets[i]
-                    + torch.tensor(self.rank_indices[i])[indices]
-                ).tolist()
-            yield results
+class EvenMultiTaskSampler(MultiTaskBatchSampler[T_co]):
+    """Sampler with even balance between datasets"""
+    def generate_tasks_distribution(self):
+        total_size = len(self.dataset_sizes)
+        weights = np.array(
+            [
+                (1 / total_size) for _ in self.dataset_sizes
+            ]
+        )
+        return torch.as_tensor(weights, dtype=torch.double)

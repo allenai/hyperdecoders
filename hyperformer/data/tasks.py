@@ -692,7 +692,7 @@ class MNLITaskDataset(AbstractTaskDataset):
         src_texts = [
             "premise:",
             example["premise"],
-            "hypothesis",
+            "hypothesis:",
             example["hypothesis"],
         ]
         tgt_texts = [str(example["label"])]

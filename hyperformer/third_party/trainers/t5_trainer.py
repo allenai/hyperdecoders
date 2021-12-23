@@ -53,7 +53,8 @@ from typing import Any, Dict, Optional, Tuple, Union
 from torch.utils.data.dataset import Dataset
 
 from utils import use_task_specific_params, reset_config
-from data import MultiTaskBatchSampler, MultiTaskIntraBatchSampler
+from data import MultiTaskBatchSampler
+from data.multitask_sampler import EvenMultiTaskSampler
 
 logger = logging.get_logger(__name__)
 
@@ -201,7 +202,7 @@ class T5Trainer(Trainer):
         else:
             num_replicas = 1
             rank = 0
-        return MultiTaskIntraBatchSampler(
+        return EvenMultiTaskSampler(
             self.dataset_sizes,
             self.args.train_batch_size,
             self.args.temperature,
@@ -522,10 +523,10 @@ class T5Trainer(Trainer):
                 isinstance(train_dataloader.sampler, DistributedSampler)
                 or isinstance(train_dataloader.batch_sampler, MultiTaskBatchSampler)
                 or isinstance(
-                    train_dataloader.batch_sampler, MultiTaskIntraBatchSampler
+                    train_dataloader.batch_sampler, MultiTaskBatchSampler
                 )
             ):
-                if isinstance(train_dataloader.sampler, DistributedSampler):
+                if isinstance(train_dataloader.sampler, MultiTaskBatchSampler):
                     train_dataloader.sampler.set_epoch(epoch)
                 else:
                     train_dataloader.batch_sampler.set_epoch(epoch)
