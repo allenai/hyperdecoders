@@ -1,0 +1,5 @@
+__pycache__
+outputs/
+.lock
+.python-version
+venv/
