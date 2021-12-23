@@ -202,7 +202,7 @@ class T5Trainer(Trainer):
         else:
             num_replicas = 1
             rank = 0
-        return EvenMultiTaskSampler(
+        return MultiTaskBatchSampler(
             self.dataset_sizes,
             self.args.train_batch_size,
             self.args.temperature,
@@ -321,7 +321,7 @@ class T5Trainer(Trainer):
             if "loss" not in key and key not in self.data_args.ignore_metric_keys
         ]
         results["eval_average_metrics"] = np.mean(metrics)
-        print(results["eval_average_metrics"], "<----")
+        logger.info('Average results --->', results["eval_average_metrics"], '<---')
         self.control = self.callback_handler.on_evaluate(
             self.args, self.state, self.control, results
         )
