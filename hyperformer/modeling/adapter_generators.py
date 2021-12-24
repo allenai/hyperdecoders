@@ -4,12 +4,6 @@ import torch
 import torch.nn as nn
 
 
-def linear(i, o):
-    l = nn.Linear(i, o)
-    nn.init.xavier_uniform_(l.weight)
-    nn.init.constant_(l.bias, 0.0)
-    return l
-
 
 def hyperfanin_init_weight(linear_layer, hypernet_in, mainnet_in):
     bound = 1e-3 * math.sqrt(3 / (hypernet_in * mainnet_in))
@@ -24,7 +18,6 @@ def hyperfanin_init_bias(linear_layer, hypernet_in):
 
 
 class SimpleGenerator(nn.Module):
-    # takes in a encoded task description and generates parameters of an adapter
     def __init__(self, config, input_dim, hidden_size):
         super().__init__()
 
@@ -78,10 +71,6 @@ class ParameterGenerator(nn.Module):
         location_idxs = location_idxs.repeat(hidden_inputs.size(0), 1)
         for i in range(self.config.num_hidden_layers):
             layer_embed = self.layer_embed(layers_idxs[:, i])
-            ffn_params = []
-            for j in range(1):
-                ffn_embed = self.location_embed(location_idxs[:, j])
-                hidden_input = torch.cat([hidden_inputs, layer_embed], dim=1)
-                ffn_params.append(self.decoder(hidden_input))
-            layers.append(ffn_params)
+            hidden_input = torch.cat([hidden_inputs, layer_embed], dim=1)
+            layers.append(self.decoder(hidden_input))
         return layers

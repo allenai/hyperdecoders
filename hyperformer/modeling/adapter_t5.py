@@ -149,10 +149,7 @@ class T5StackWithAdapter(T5Stack):
 
     def apply_params_to_adapters(self, batch_size, generated_params):
         for param, block in zip(generated_params, self.block):
-            for p, l in zip(param, block.layer):
-                if isinstance(l, T5LayerFFWithAdapter):
-                    l.adapter_layer.apply_adapter_params(batch_size, *p)
-
+            block.layer[-1].adapter_layer.apply_adapter_params(batch_size, *param)
 
 class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):
     def __init__(self, config):
