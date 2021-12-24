@@ -38,6 +38,8 @@
     "unfreeze_decoder_adapters": false,
     "unfreeze_encoder": true,
     "unfreeze_decoder": true,
+    "adapter_dim": 64,
+    "hypernetwork_bottleneck": 128,
     "tasks": [
         "rte",
         "sst2",

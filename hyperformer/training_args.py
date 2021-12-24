@@ -273,5 +273,5 @@ class AdapterTrainingArguments:
         default=64, metadata={"help": "size of adapters themselves."}
     )
     hypernetwork_bottleneck: Optional[int] = field(
-        default=130, metadata={"help": "size of hypernetwork bottleneck dim"}
+        default=128, metadata={"help": "size of hypernetwork bottleneck dim"}
     )
