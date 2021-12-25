@@ -127,7 +127,7 @@ class T5StackWithAdapter(T5Stack):
                 input_ids.size(0),
                 self.param_gen(self.mlp(res.last_hidden_state).mean(dim=1)),
             )
-        elif (self.is_decoder and self.config.encoder_adapter == "task") or (
+        elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             not self.is_decoder and self.config.encoder_adapter == "task"
         ):
             indices = torch.tensor(
