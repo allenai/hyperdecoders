@@ -55,7 +55,6 @@ class T5LayerFFWithAdapter(T5LayerFF):
         normed_states = self.layer_norm(hidden_states)
         forwarded_states = self.DenseReluDense(normed_states)
         adapter_input = normed_states if self.config.adapter_norm_input else hidden_states
-        print(self.config.adapter_norm_input, 'XX')
         hidden_states = (
             hidden_states
             + self.dropout(forwarded_states)
