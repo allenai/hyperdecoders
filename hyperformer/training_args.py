@@ -275,3 +275,6 @@ class AdapterTrainingArguments:
     hypernetwork_bottleneck: Optional[int] = field(
         default=128, metadata={"help": "size of hypernetwork bottleneck dim"}
     )
+    adapter_norm_input: bool = field(
+        default=False, metadata={"help": "Whether to use layer normed input into adapters or not."}
+    )

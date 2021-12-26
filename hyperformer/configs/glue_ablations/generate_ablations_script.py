@@ -15,7 +15,8 @@ for enc_setup in ['none', 'manual', 'task', 'generated']:
         else:
             config['unfreeze_encoder_adapters'] = True
             config['unfreeze_encoder'] = False
-
+        if enc_setup in ['task', 'generated']:
+            config['adapter_norm_input'] = True
         config['decoder_adapter'] = dec_setup
         # if ff, unfreeze all, else, just adapter stuff
         if dec_setup == 'none':

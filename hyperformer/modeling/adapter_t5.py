@@ -48,15 +48,18 @@ class T5WithAdapterConfig(T5Config):
 class T5LayerFFWithAdapter(T5LayerFF):
     def __init__(self, config):
         super().__init__(config)
+        self.config = config
         self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
 
     def forward(self, hidden_states):
         normed_states = self.layer_norm(hidden_states)
         forwarded_states = self.DenseReluDense(normed_states)
+        adapter_input = normed_states if self.config.adapter_norm_input else hidden_states
+        print(self.config.adapter_norm_input, 'XX')
         hidden_states = (
             hidden_states
             + self.dropout(forwarded_states)
-            + self.adapter_layer(hidden_states)
+            + self.adapter_layer(adapter_input)
         )
         return hidden_states
 

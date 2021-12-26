@@ -41,6 +41,7 @@
     "adapter_dim": 64,
     "hypernetwork_bottleneck": 128,
     "loss_scaling": false,
+    "adapter_norm_input": true,
     "tasks": [
         "rte",
         "sst2",
