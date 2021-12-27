@@ -38,7 +38,7 @@
     "unfreeze_decoder_adapters": true,
     "unfreeze_encoder": false,
     "unfreeze_decoder": false,
-    "adapter_dim": 230,
+    "adapter_dim": 64,
     "hypernetwork_bottleneck": 128,
     "loss_scaling": false,
     "adapter_norm_input": true,
