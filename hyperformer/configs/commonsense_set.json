@@ -2,8 +2,8 @@
     "model_name_or_path": "google/t5-v1_1-large",
     "tokenizer_name": "google/t5-v1_1-large",
     "learning_rate": 0.0003,
-    "output_dir": "glue_manual_generated",
-    "max_source_length": 128,
+    "output_dir": "commonsense_set",
+    "max_source_length": 512,
     "max_target_length": 128,
     "val_max_target_length": 128,
     "test_max_target_length": 128,
@@ -42,23 +42,13 @@
     "hypernetwork_bottleneck": 128,
     "loss_scaling": false,
     "tasks": [
-        "rte",
-        "sst2",
-        "mrpc",
-        "stsb",
-        "qqp",
-        "mnli",
-        "qnli",
-        "cola"
+        "social_i_qa",
+        "hellaswag",
+        "commonsense_qa"
     ],
     "eval_tasks": [
-        "rte",
-        "sst2",
-        "mrpc",
-        "stsb",
-        "qqp",
-        "mnli",
-        "qnli",
-        "cola"
+        "social_i_qa",
+        "hellaswag",
+        "commonsense_qa"
     ]
 }
