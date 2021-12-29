@@ -1,6 +1,6 @@
 {
-    "model_name_or_path": "google/t5-v1_1-large",
-    "tokenizer_name": "google/t5-v1_1-large",
+    "model_name_or_path": "t5-large",
+    "tokenizer_name": "t5-large",
     "learning_rate": 0.0003,
     "output_dir": "commonsense_set",
     "max_source_length": 512,
