@@ -2,8 +2,8 @@
     "model_name_or_path": "t5-large",
     "tokenizer_name": "t5-large",
     "learning_rate": 0.0003,
-    "output_dir": "xsum_mnli",
-    "max_source_length": 512,
+    "output_dir": "mnli_vanilla",
+    "max_source_length": 128,
     "max_target_length": 128,
     "val_max_target_length": 128,
     "test_max_target_length": 128,
@@ -34,15 +34,15 @@
     "encoder_adapter": "none",
     "decoder_adapter": "none",
     "freeze_model": false,
-    "unfreeze_encoder_adapters": true,
-    "unfreeze_decoder_adapters": true,
+    "unfreeze_encoder_adapters": false,
+    "unfreeze_decoder_adapters": false,
     "unfreeze_encoder": true,
     "unfreeze_decoder": true,
     "adapter_dim": 64,
     "hypernetwork_bottleneck": 128,
     "loss_scaling": false,
     
-    "tasks": ["xsum", "mnli"],
-    "eval_tasks": ["xsum", "mnli"]
-}
+    "tasks": ["mnli"],
+    "eval_tasks": ["mnli"]
+    }
     
