@@ -70,6 +70,10 @@ class T5BlockWithAdapter(T5Block):
         )
         self.layer[-1] = T5LayerFFWithAdapter(config)
 
+def mean_pooling(hidden_state, attention_mask):
+    input_masked = hidden_state * attention_mask.unsqueeze(-1)
+    return input_masked.sum(1) / attention_mask.sum(1).unsqueeze(-1)
+
 
 class T5StackWithAdapter(T5Stack):
     def __init__(self, config, embed_tokens=None):
@@ -115,7 +119,7 @@ class T5StackWithAdapter(T5Stack):
         if self.is_decoder and self.config.decoder_adapter == "generated":
             self.apply_params_to_adapters(
                 encoder_hidden_states.size(0),
-                self.param_gen(self.mlp(encoder_hidden_states).mean(dim=1)),
+                self.param_gen(self.mlp(mean_pooling(encoder_hidden_states, kwargs['encoder_attention_mask']))),
             )
         elif (not self.is_decoder) and self.config.encoder_adapter == "generated":
             # for encoder generation, we first pass through the encoder, then set encoder adapters based on this.
@@ -127,7 +131,7 @@ class T5StackWithAdapter(T5Stack):
             )
             self.apply_params_to_adapters(
                 input_ids.size(0),
-                self.param_gen(self.mlp(res.last_hidden_state).mean(dim=1)),
+                self.param_gen(self.mlp(mean_pooling(res.last_hidden_state, kwargs['attention_mask']))),
             )
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             not self.is_decoder and self.config.encoder_adapter == "task"
