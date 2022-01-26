@@ -262,6 +262,7 @@ def main():
             tpu_num_cores=training_args.tpu_num_cores,
             task_weights=task_weights,
         ),
+        tokenizer=tokenizer,
         compute_metrics=None,
         multi_task_compute_metrics=compute_metrics_fn,
         data_args=data_args,
