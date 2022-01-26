@@ -2,6 +2,7 @@
 
 import collections
 import math
+import json
 
 import numpy as np
 import os
@@ -305,6 +306,11 @@ class T5Trainer(Trainer):
             if self.args.tpu_metrics_debug or self.args.debug:
                 # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
                 xm.master_print(met.metrics_report())
+
+            if eval_task == 'squad' or eval_task == 'mrqa': # TODO: replace with list of 'squad eval tasks'
+                answer_results = {qid: self.tokenizer.decode(pred, skip_special_tokens=True) for qid, pred in zip(eval_dataset['id'], output.predictions)}
+                with open(os.path.join(self.args.output_dir, 'predicted_answers.json'), 'w') as f:
+                    json.dump(answer_results, f, indent=4)
 
             tasks_metric = {eval_task + "_" + k: v for k, v in output.metrics.items()}
             for key in sorted(tasks_metric.keys()):

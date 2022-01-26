@@ -184,6 +184,7 @@ class AbstractTaskDataset(abc.ABC):
         tgt_strs: List[str],
         add_prefix: bool = False,
         prefix: str = None,
+        id: str = None
     ):
         src_prefix = self.name if prefix is None else prefix
         src_strs = [src_prefix] + src_strs if add_prefix else src_strs
@@ -191,6 +192,7 @@ class AbstractTaskDataset(abc.ABC):
             "src_texts": " ".join(src_strs),
             "tgt_texts": " ".join(tgt_strs),
             "task": self.name,
+            "id": id # for squad, we need to save id: answer mapping.
         }
 
     def get_label_size(self, tokenizer):
@@ -934,10 +936,28 @@ class SquadDataset(AbstractTaskDataset):
     metrics = [metrics.squad_metrics]
     generation_task = True
 
-    def preprocessor(self, example, add_prefix=True):
+    def preprocessor(self, example, add_prefix=False):
         src_texts = ["question:", example["question"], "context:", example["context"]]
         tgt_texts = [str(example["answers"]["text"][0])]
-        return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, id=example['id'])
+
+class MrqaDataset(AbstractTaskDataset):
+    name = "mrqa"
+    task_specific_config = {
+        "max_length": 16
+    }  # based on 't5 on tpu' notebook, nothing special.
+    split_to_data_split = {
+        "train": "train",
+        "validation": "validation",
+        "test": "test",
+    }
+    metrics = [metrics.squad_metrics]
+    generation_task = True
+
+    def preprocessor(self, example, add_prefix=False):
+        src_texts = ["question:", example["question"], "context:", example["context"]]
+        tgt_texts = [str(example["answers"][0])]
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, id=example['qid'])
 
 
 class XSumTaskDataset(AbstractTaskDataset):
@@ -1005,6 +1025,7 @@ TASK_MAPPING = OrderedDict(
         ("commonsense_qa", CommonsenseQaTaskDataset),
         ("sick", SickTaskDataset),
         ("squad", SquadDataset),
+        ("mrqa", MrqaDataset),
         ("xsum", XSumTaskDataset),
         ("cnn_dailymail", CnnDailyMailDataset),
     ]
