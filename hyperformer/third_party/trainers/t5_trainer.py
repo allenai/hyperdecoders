@@ -55,7 +55,7 @@ from torch.utils.data.dataset import Dataset
 
 from utils import use_task_specific_params, reset_config
 from data import MultiTaskBatchSampler
-from data.multitask_sampler import EvenMultiTaskSampler
+from collections import defaultdict
 
 logger = logging.get_logger(__name__)
 
@@ -308,7 +308,10 @@ class T5Trainer(Trainer):
                 xm.master_print(met.metrics_report())
 
             if eval_task == 'squad' or eval_task == 'mrqa': # TODO: replace with list of 'squad eval tasks'
-                answer_results = {qid: self.tokenizer.decode(pred, skip_special_tokens=True) for qid, pred in zip(eval_dataset['id'], output.predictions)}
+                answer_results = defaultdict(list)
+                # we may have multiple answers for each q due to chunking (TODO: also report probs)
+                for qid, prediction in zip(eval_dataset['id'], output.predictions):
+                    answer_results[qid].append(self.tokenizer.decode(prediction, skip_special_tokens=True))
                 with open(os.path.join(self.args.output_dir, 'predicted_answers.json'), 'w') as f:
                     json.dump(answer_results, f, indent=4)
 

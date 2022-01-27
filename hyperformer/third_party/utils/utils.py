@@ -760,3 +760,24 @@ class TaskCollator:
         batch_encoding["tasks"] = tasks
         batch_encoding["task_weights"] = [self.task_weights[t] for t in tasks]
         return batch_encoding.data
+
+class MrqaTaskCollator(TaskCollator):
+    """Collator for padding when input_ids is given (preprocessed mrqa)."""
+    def _encode(self, batch) -> Dict[str, torch.Tensor]:
+        batch_encoding = self.tokenizer.pad(
+            [{'input_ids': x["input_ids"]} for x in batch],
+            padding='longest',
+            max_length=self.data_args.max_source_length,
+            return_tensors='pt',
+        )
+        batch_enc_target = self.tokenizer(
+            [x["answer"] for x in batch],
+            padding='longest',
+            return_tensors='pt',
+            max_length=self.data_args.max_target_length,
+        )
+        batch_encoding['labels'] = batch_enc_target['input_ids']
+        tasks = [x["task"] for x in batch]
+        batch_encoding["tasks"] = tasks
+        batch_encoding["task_weights"] = [self.task_weights[t] for t in tasks]
+        return batch_encoding.data

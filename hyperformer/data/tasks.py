@@ -10,8 +10,12 @@ import numpy as np
 import torch
 from metrics import metrics
 from typing import Callable, Dict, Mapping, List
+from collections import defaultdict
+
+from transformers import T5Tokenizer
 
 from .utils import round_stsb_target, compute_task_max_decoding_length
+from .mrqa_preprocess import chunk_sample
 
 logger = logging.getLogger(__name__)
 
@@ -944,8 +948,8 @@ class SquadDataset(AbstractTaskDataset):
 class MrqaDataset(AbstractTaskDataset):
     name = "mrqa"
     task_specific_config = {
-        "max_length": 16
-    }  # based on 't5 on tpu' notebook, nothing special.
+        "max_length": 64
+    }
     split_to_data_split = {
         "train": "train",
         "validation": "validation",
@@ -958,6 +962,52 @@ class MrqaDataset(AbstractTaskDataset):
         src_texts = ["question:", example["question"], "context:", example["context"]]
         tgt_texts = [str(example["answers"][0])]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix, id=example['qid'])
+
+# mrqa with chunking preprocessing. Kept separate in case we want to use unchunked.
+class ChunkedMrqaDataset(AbstractTaskDataset):
+    name = "mrqa"
+    task_specific_config = {
+        "max_length": 64
+    }
+    split_to_data_split = {
+        "train": "train",
+        "validation": "validation",
+        "test": "test",
+    }
+    metrics = [metrics.squad_metrics]
+    generation_task = True
+
+    def __init__(self, seed=42, tokenizer=T5Tokenizer.from_pretrained('t5-base')):
+        self.seed = seed
+        self.tokenizer = tokenizer
+
+    # TODO: this is fairly hideous, i pull out of batched form, add my rows,
+    # then put it back in. There is probably a more efficient way to do this...
+    def preprocessor(self, samples, add_prefix=False):
+        result = defaultdict(list)
+        examples = []
+        for i in range(len(samples['qid'])):
+            examples.append({
+                k: samples[k][i] for k in samples
+            })
+        for sample in examples:
+            for chunked_sample in chunk_sample(self.tokenizer, sample):
+                for key in chunked_sample:
+                    result[key].append(chunked_sample[key])
+        # little bit of housekeeping
+        result['id'] = result['qid']
+        del result['qid']
+        return result
+
+    def get_dataset(
+        self, split, n_obs=None, add_prefix=False, split_validation_test=False
+    ):
+        dataset = self.get_shuffled_sampled_split(split, n_obs)
+        return dataset.map(
+            functools.partial(self.preprocessor, add_prefix=add_prefix),
+            remove_columns=dataset.column_names,
+            batched=True, # so we can add rows.
+        )
 
 
 class XSumTaskDataset(AbstractTaskDataset):
@@ -1025,7 +1075,8 @@ TASK_MAPPING = OrderedDict(
         ("commonsense_qa", CommonsenseQaTaskDataset),
         ("sick", SickTaskDataset),
         ("squad", SquadDataset),
-        ("mrqa", MrqaDataset),
+        ("mrqa", ChunkedMrqaDataset),
+        ("mrqa_reg", MrqaDataset),
         ("xsum", XSumTaskDataset),
         ("cnn_dailymail", CnnDailyMailDataset),
     ]

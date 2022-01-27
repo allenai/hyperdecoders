@@ -24,7 +24,7 @@ from modeling.adapter_bart import (
 )
 from third_party.trainers import T5Trainer
 from data import AutoTask
-from third_party.utils import TaskCollator, check_output_dir
+from third_party.utils import TaskCollator, check_output_dir, MrqaTaskCollator
 from metrics import build_compute_metrics_fn
 from training_args import (
     Seq2SeqTrainingArguments,
@@ -256,7 +256,7 @@ def main():
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_datasets,
-        data_collator=TaskCollator(
+        data_collator=MrqaTaskCollator(
             tokenizer,
             data_args,
             tpu_num_cores=training_args.tpu_num_cores,
