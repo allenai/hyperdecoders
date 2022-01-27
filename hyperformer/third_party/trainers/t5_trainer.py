@@ -26,9 +26,10 @@ from transformers.optimization import (
     get_linear_schedule_with_warmup,
     get_polynomial_decay_schedule_with_warmup,
 )
+from transformers.deepspeed import deepspeed_init
 from transformers.trainer_callback import TrainerState
-from transformers.trainer_utils import TrainOutput
-from transformers.trainer_utils import set_seed
+from transformers.trainer_utils import TrainOutput, PredictionOutput, set_seed, denumpify_detensorize, EvalPrediction
+from transformers.trainer_pt_utils import DistributedTensorGatherer, SequentialDistributedSampler, nested_concat
 
 # Check if Pytorch version >= 1.6 to switch between Native AMP and Apex
 if version.parse(torch.__version__) < version.parse("1.6"):
@@ -50,7 +51,7 @@ if is_torch_tpu_available():
     import torch_xla.debug.metrics as met
     import torch_xla.distributed.parallel_loader as pl
 
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union, List
 from torch.utils.data.dataset import Dataset
 
 from utils import use_task_specific_params, reset_config
@@ -296,7 +297,7 @@ class T5Trainer(Trainer):
 
             eval_dataloader = self.get_eval_dataloader(eval_dataset)
 
-            output = self.prediction_loop(
+            output, gen_probs = self.prediction_loop(
                 eval_dataloader,
                 description="Evaluation",
                 # No point gathering the predictions if there are no metrics, otherwise we defer to
@@ -310,8 +311,8 @@ class T5Trainer(Trainer):
             if eval_task == 'squad' or eval_task == 'mrqa': # TODO: replace with list of 'squad eval tasks'
                 answer_results = defaultdict(list)
                 # we may have multiple answers for each q due to chunking (TODO: also report probs)
-                for qid, prediction in zip(eval_dataset['id'], output.predictions):
-                    answer_results[qid].append(self.tokenizer.decode(prediction, skip_special_tokens=True))
+                for qid, prob, prediction in zip(eval_dataset['id'], gen_probs, output.predictions):
+                    answer_results[qid].append((self.tokenizer.decode(prediction, skip_special_tokens=True), prob.item()))
                 with open(os.path.join(self.args.output_dir, 'predicted_answers.json'), 'w') as f:
                     json.dump(answer_results, f, indent=4)
 
@@ -704,12 +705,21 @@ class T5Trainer(Trainer):
             "num_beams": self.model.config.num_beams,
         }
         gen_kwargs["tasks"] = inputs["tasks"]
+        gen_probs = None
         if self.args.predict_with_generate and not self.args.prediction_loss_only:
-            generated_tokens = self.model.generate(
+            generated_output = self.model.generate(
                 inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
+                return_dict_in_generate=True,
+                output_scores=True,
                 **gen_kwargs,
             )
+            generated_tokens = generated_output.sequences
+            # calculate sequence probabilities
+            gen_sequences = generated_output.sequences[:, 1:] # skip the bos token
+            probs = torch.stack(generated_output.scores, dim=1).softmax(-1)
+            gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(-1).prod(-1)
+            
             # in case the batch is shorter than max length, the output should be padded
             if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
                 generated_tokens = self._pad_tensors_to_max_len(
@@ -723,15 +733,147 @@ class T5Trainer(Trainer):
 
         loss = loss.mean().detach()
         if self.args.prediction_loss_only:
-            return (loss, None, None)
+            return (loss, None, None, None)
 
         logits = generated_tokens if self.args.predict_with_generate else logits
 
         if labels.shape[-1] < gen_kwargs["max_length"]:
             labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
 
-        return (loss, logits, labels)
+        return (loss, logits, labels, gen_probs)
 
+    def prediction_loop(
+        self,
+        dataloader: DataLoader,
+        description: str,
+        prediction_loss_only: Optional[bool] = None,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
+    ) -> PredictionOutput:
+        """
+        Prediction/evaluation loop, shared by :obj:`Trainer.evaluate()` and :obj:`Trainer.predict()`.
+
+        Works both with or without labels.
+        """
+        if not isinstance(dataloader.dataset, collections.abc.Sized):
+            raise ValueError("dataset must implement __len__")
+        prediction_loss_only = (
+            prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
+        )
+
+        # if eval is called w/o train init deepspeed here
+        if self.args.deepspeed and not self.deepspeed:
+
+            # XXX: eval doesn't have `resume_from_checkpoint` arg but we should be able to do eval
+            # from the checkpoint eventually
+            deepspeed_engine, _, _ = deepspeed_init(self, num_training_steps=0, resume_from_checkpoint=None)
+            self.model = deepspeed_engine.module
+            self.model_wrapped = deepspeed_engine
+            self.deepspeed = deepspeed_engine
+            # XXX: we don't need optim/sched for inference, but this needs to be sorted out, since
+            # for example the Z3-optimizer is a must for zero3 to work even for inference - what we
+            # don't need is the deepspeed basic optimizer which is self.optimizer.optimizer
+            deepspeed_engine.optimizer.optimizer = None
+            deepspeed_engine.lr_scheduler = None
+
+        model = self._wrap_model(self.model, training=False)
+
+        # if full fp16 is wanted on eval and this ``evaluation`` or ``predict`` isn't called while
+        # ``train`` is running, halve it first and then put on device
+        if not self.is_in_train and self.args.fp16_full_eval:
+            model = model.half().to(self.args.device)
+
+        batch_size = dataloader.batch_size
+        num_examples = self.num_examples(dataloader)
+        logger.info(f"***** Running {description} *****")
+        logger.info(f"  Num examples = {num_examples}")
+        logger.info(f"  Batch size = {batch_size}")
+        losses_host: torch.Tensor = None
+        preds_host: Union[torch.Tensor, List[torch.Tensor]] = None
+        labels_host: Union[torch.Tensor, List[torch.Tensor]] = None
+        probs_host: Union[torch.Tensor, List[torch.Tensor]] = None
+
+        world_size = max(1, self.args.world_size)
+
+        eval_losses_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=batch_size)
+        if not prediction_loss_only:
+            # The actual number of eval_sample can be greater than num_examples in distributed settings (when we pass
+            # a batch size to the sampler)
+            make_multiple_of = None
+            if hasattr(dataloader, "sampler") and isinstance(dataloader.sampler, SequentialDistributedSampler):
+                make_multiple_of = dataloader.sampler.batch_size
+            preds_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+            probs_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+            labels_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+
+        model.eval()
+
+        if is_torch_tpu_available():
+            dataloader = pl.ParallelLoader(dataloader, [self.args.device]).per_device_loader(self.args.device)
+
+        if self.args.past_index >= 0:
+            self._past = None
+
+        self.callback_handler.eval_dataloader = dataloader
+
+        for step, inputs in enumerate(dataloader):
+            loss, logits, labels, gen_probs = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            if loss is not None:
+                losses = loss.repeat(batch_size)
+                losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+            if logits is not None:
+                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+            if gen_probs is not None:
+                probs_host = gen_probs if probs_host is None else nested_concat(probs_host, gen_probs, padding_index=-100)
+            if labels is not None:
+                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
+            self.control = self.callback_handler.on_prediction_step(self.args, self.state, self.control)
+
+            # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
+            if self.args.eval_accumulation_steps is not None and (step + 1) % self.args.eval_accumulation_steps == 0:
+                eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
+                if not prediction_loss_only:
+                    preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
+                    probs_gatherer.add_arrays(self._gather_and_numpify(probs_host, "gen_probs"))
+                    labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+
+                # Set back to None to begin a new accumulation
+                losses_host, preds_host, probs_host, labels_host = None, None, None, None
+
+        if self.args.past_index and hasattr(self, "_past"):
+            # Clean the state at the end of the evaluation loop
+            delattr(self, "_past")
+
+        # Gather all remaining tensors and put them back on the CPU
+        eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
+        if not prediction_loss_only:
+            preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
+            probs_gatherer.add_arrays(self._gather_and_numpify(probs_host, "gen_probs"))
+            labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+
+        eval_loss = eval_losses_gatherer.finalize()
+        preds = preds_gatherer.finalize() if not prediction_loss_only else None
+        gen_probs = probs_gatherer.finalize() if not prediction_loss_only else None
+        label_ids = labels_gatherer.finalize() if not prediction_loss_only else None
+
+        if self.compute_metrics is not None and preds is not None and label_ids is not None:
+            metrics = self.compute_metrics(EvalPrediction(predictions=preds, label_ids=label_ids))
+        else:
+            metrics = {}
+
+        # To be JSON-serializable, we need to remove numpy types or zero-d tensors
+        metrics = denumpify_detensorize(metrics)
+
+        if eval_loss is not None:
+            metrics[f"{metric_key_prefix}_loss"] = eval_loss.mean().item()
+
+        # Prefix all keys with metric_key_prefix + '_'
+        for key in list(metrics.keys()):
+            if not key.startswith(f"{metric_key_prefix}_"):
+                metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
+
+        return PredictionOutput(predictions=preds, label_ids=label_ids, metrics=metrics), gen_probs
+    
     def _pad_tensors_to_max_len(self, tensor, max_length):
         # If PAD token is not defined at least EOS token has to be defined
         pad_token_id = (
