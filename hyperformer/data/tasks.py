@@ -12,7 +12,7 @@ from metrics import metrics
 from typing import Callable, Dict, Mapping, List
 from collections import defaultdict
 
-from transformers import T5Tokenizer
+from transformers import T5TokenizerFast
 
 from .utils import round_stsb_target, compute_task_max_decoding_length
 from .mrqa_preprocess import chunk_sample
@@ -977,15 +977,15 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
     metrics = [metrics.squad_metrics]
     generation_task = True
 
-    def __init__(self, seed=42, tokenizer=T5Tokenizer.from_pretrained('t5-base')):
+    def __init__(self, seed=42, tokenizer=T5TokenizerFast.from_pretrained('t5-base')):
         self.seed = seed
         self.tokenizer = tokenizer
 
     # TODO: this is fairly hideous, i pull out of batched form, add my rows,
     # then put it back in. There is probably a more efficient way to do this...
     def preprocessor(self, samples, add_prefix=False):
-        result = defaultdict(list)
         examples = []
+        result = defaultdict(list)
         for i in range(len(samples['qid'])):
             examples.append({
                 k: samples[k][i] for k in samples
