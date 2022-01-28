@@ -4,8 +4,8 @@ For this version, we chunk the dataset into 512-length
 chunks, to simulate bert-style preprocessing. 
 '''
 
-def chunk_sample(tokenizer, sample, stride=128, max_length=512):
-    initial_sample = f"question: {sample['question']} context:"
+def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
+    initial_sample = f"question: {sample['question']} context: "
     init_input_ids = tokenizer(initial_sample, add_special_tokens=False)['input_ids']
     start_len = len(init_input_ids)
     context = sample['context']
@@ -21,8 +21,8 @@ def chunk_sample(tokenizer, sample, stride=128, max_length=512):
         context_tokens = context_tokens[remaining_length-stride:] # stride for some overlap
         offsets_chunk = offsets[:remaining_length]
         offsets = offsets[remaining_length-stride:]
-        # answer may not be possible with this chunk.
-        chunk_ans = 'None'
+        # answer may not be possible with this chunk. Teach model to answer with nothing.
+        chunk_ans = ''
          # im not sure that answers and spans are the same order, but this seems fine.
         for i, span in enumerate(sample['detected_answers']['char_spans']):
             # we might have only </s> left, so this handles that
@@ -37,6 +37,7 @@ def chunk_sample(tokenizer, sample, stride=128, max_length=512):
             'input_ids': init_input_ids + chunk,
             'answer': chunk_ans,
             'qid': sample['qid'],
+            'subset': sample['subset'],
             'task': 'mrqa'
         }
     

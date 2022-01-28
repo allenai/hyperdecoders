@@ -13,6 +13,7 @@ from typing import Callable, Dict, Mapping, List
 from collections import defaultdict
 
 from transformers import T5TokenizerFast
+from datasets import concatenate_datasets
 
 from .utils import round_stsb_target, compute_task_max_decoding_length
 from .mrqa_preprocess import chunk_sample
@@ -977,21 +978,23 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
     metrics = [metrics.squad_metrics]
     generation_task = True
 
-    def __init__(self, seed=42, tokenizer=T5TokenizerFast.from_pretrained('t5-base')):
+    def __init__(self, seed=42, max_examples_per_dataset=75000, tokenizer=T5TokenizerFast.from_pretrained('t5-base')):
         self.seed = seed
         self.tokenizer = tokenizer
+        self.max_examples_per_dataset = max_examples_per_dataset
+        self.subsets = ['HotpotQA', 'NaturalQuestionsShort', 'NewsQA', 'SearchQA', 'SQuAD', 'TriviaQA-web']
 
     # TODO: this is fairly hideous, i pull out of batched form, add my rows,
     # then put it back in. There is probably a more efficient way to do this...
-    def preprocessor(self, samples, add_prefix=False):
-        examples = []
+    def preprocessor(self, samples, split, add_prefix=False):
         result = defaultdict(list)
+        examples = []
         for i in range(len(samples['qid'])):
             examples.append({
                 k: samples[k][i] for k in samples
             })
         for sample in examples:
-            for chunked_sample in chunk_sample(self.tokenizer, sample):
+            for chunked_sample in chunk_sample(self.tokenizer, sample, split=='train'):
                 for key in chunked_sample:
                     result[key].append(chunked_sample[key])
         # little bit of housekeeping
@@ -1003,11 +1006,21 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
         self, split, n_obs=None, add_prefix=False, split_validation_test=False
     ):
         dataset = self.get_shuffled_sampled_split(split, n_obs)
-        return dataset.map(
-            functools.partial(self.preprocessor, add_prefix=add_prefix),
+        dataset = dataset.map(
+            functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
             remove_columns=dataset.column_names,
             batched=True, # so we can add rows.
         )
+        # For the train split, we sample 75k examples from the postive + negative examples for each ds.
+        # This prevents the negative examples overwhelming.
+        if split == 'train':
+            datasets = []
+            for subset in self.subsets:
+                subset_dataset = dataset.filter(lambda x: x['subset'] == subset)
+                num_downsample = min(len(subset_dataset), self.max_examples_per_dataset)
+                datasets.append(subset_dataset.shuffle().select(range(num_downsample)))
+            dataset = concatenate_datasets(datasets)
+        return dataset
 
 
 class XSumTaskDataset(AbstractTaskDataset):
