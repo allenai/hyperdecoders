@@ -14,16 +14,20 @@ def chunk_sample(tokenizer, sample, stride=128, max_length=512):
     # context = context.replace('[TLE]', '</s>')
     tokenized_output = tokenizer(context, return_offsets_mapping=True)
     context_tokens = tokenized_output['input_ids']
-    offsets = tokenized_output['offset_mapping']
+    offsets = tokenized_output['offset_mapping'][:-1] # ignore the last (0,0) for </s>
     remaining_length = max_length - start_len
     while len(context_tokens) > 0:
         chunk = context_tokens[:remaining_length]
         context_tokens = context_tokens[remaining_length-stride:] # stride for some overlap
         offsets_chunk = offsets[:remaining_length]
+        offsets = offsets[remaining_length-stride:]
         # answer may not be possible with this chunk.
         chunk_ans = 'None'
          # im not sure that answers and spans are the same order, but this seems fine.
         for i, span in enumerate(sample['detected_answers']['char_spans']):
+            # we might have only </s> left, so this handles that
+            if len(offsets_chunk) == 0:
+                break
             if span['start'][0] >= offsets_chunk[0][0] and span['end'][0] <= offsets_chunk[-1][-1]:
                 chunk_ans = sample['answers'][i]
                 break
