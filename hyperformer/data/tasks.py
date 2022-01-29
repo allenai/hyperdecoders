@@ -1006,20 +1006,22 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
         self, split, n_obs=None, add_prefix=False, split_validation_test=False
     ):
         dataset = self.get_shuffled_sampled_split(split, n_obs)
-        dataset = dataset.map(
-            functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
-            remove_columns=dataset.column_names,
-            batched=True, # so we can add rows.
-        )
-        # For the train split, we sample 75k examples from the postive + negative examples for each ds.
-        # This prevents the negative examples overwhelming.
         if split == 'train':
+            # for the train split, we first downsample each dataset to balance
+            # out datasets a bit more. We then convert into chunks *after* this
             datasets = []
             for subset in self.subsets:
                 subset_dataset = dataset.filter(lambda x: x['subset'] == subset)
                 num_downsample = min(len(subset_dataset), self.max_examples_per_dataset)
                 datasets.append(subset_dataset.shuffle().select(range(num_downsample)))
             dataset = concatenate_datasets(datasets)
+            dataset = dataset.map(
+                functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
+                remove_columns=dataset.column_names,
+                batched=True, # so we can add rows.
+            )
+        elif split == 'validation':
+            dataset = dataset.filter(lambda x: x['subset'] == 'TriviaQA-web')
         return dataset
 
 

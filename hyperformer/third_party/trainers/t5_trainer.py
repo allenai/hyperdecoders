@@ -312,7 +312,7 @@ class T5Trainer(Trainer):
                 answer_results = defaultdict(list)
                 # we may have multiple answers for each q due to chunking (TODO: also report probs)
                 for qid, prob, prediction in zip(eval_dataset['id'], gen_probs, output.predictions):
-                    answer_results[qid].append((self.tokenizer.decode(prediction, skip_special_tokens=True), prob.item()))
+                    answer_results[qid].append((self.tokenizer.decode(prediction, skip_special_tokens=True), prob.tolist()))
                 with open(os.path.join(self.args.output_dir, 'predicted_answers.json'), 'w') as f:
                     json.dump(answer_results, f, indent=4)
 
@@ -712,14 +712,15 @@ class T5Trainer(Trainer):
                 attention_mask=inputs["attention_mask"],
                 return_dict_in_generate=True,
                 output_scores=True,
+                min_length=2,
                 **gen_kwargs,
             )
             generated_tokens = generated_output.sequences
             # calculate sequence probabilities
             gen_sequences = generated_output.sequences[:, 1:] # skip the bos token
-            probs = torch.stack(generated_output.scores, dim=1).softmax(-1)
-            gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(-1).prod(-1)
-            
+            probs = torch.stack(generated_output.scores, dim=1)
+            gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(-1)
+            gen_probs = gen_probs.masked_fill(gen_sequences == self.tokenizer.pad_token_id, 0)
             # in case the batch is shorter than max length, the output should be padded
             if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
                 generated_tokens = self._pad_tensors_to_max_len(
