@@ -1015,13 +1015,11 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
                 num_downsample = min(len(subset_dataset), self.max_examples_per_dataset)
                 datasets.append(subset_dataset.shuffle().select(range(num_downsample)))
             dataset = concatenate_datasets(datasets)
-            dataset = dataset.map(
-                functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
-                remove_columns=dataset.column_names,
-                batched=True, # so we can add rows.
-            )
-        elif split == 'validation':
-            dataset = dataset.filter(lambda x: x['subset'] == 'TriviaQA-web')
+        dataset = dataset.map(
+            functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
+            remove_columns=dataset.column_names,
+            batched=True, # so we can add rows.
+        )
         return dataset
 
 

@@ -41,7 +41,6 @@ def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
             'task': 'mrqa'
         }
     
-    
 def chunk_dataset(tokenizer, dataset, stride=128, max_length=512):
     for sample in dataset:
         for chunked_sample in chunk_sample(tokenizer, sample, stride, max_length):
@@ -50,8 +49,8 @@ def chunk_dataset(tokenizer, dataset, stride=128, max_length=512):
 # testing
 if __name__ == '__main__':
     from datasets import load_dataset
-    from transformers import T5Tokenizer
-    tokenizer = T5Tokenizer.from_pretrained('t5-base')
+    from transformers import T5TokenizerFast
+    tokenizer = T5TokenizerFast.from_pretrained('t5-base')
     mrqa = load_dataset('mrqa', split='train')
     print(f'MRQA has {len(mrqa)} samples')
     print(f'First sample: {mrqa[0]}')
