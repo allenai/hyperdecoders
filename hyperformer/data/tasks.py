@@ -705,6 +705,60 @@ class MNLITaskDataset(AbstractTaskDataset):
         tgt_texts = [str(example["label"])]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
 
+class AdversarialNLITaskDataset(AbstractTaskDataset):
+    name = "anli"
+    label_list = ["0", "1", "2"]
+    task_specific_config = {"max_length": compute_task_max_decoding_length(label_list)}
+    split_to_data_split = {
+        "train": "train",
+        "validation": "dev",
+        "test": "test",
+    }
+    metrics = [metrics.accuracy]
+    suffixes = ['_r1', '_r2', '_r3']
+
+    def load_dataset(self, split):
+        # anli has 3 subsplits, we just combine these following exT5
+        subsplits = []
+        for suffix in self.suffixes:
+            subsplits.append(datasets.load_dataset(self.name, split=split + suffix))
+        return datasets.concatenate_datasets(subsplits)
+
+    def preprocessor(self, example, add_prefix=True):
+        src_texts = [
+            "premise:",
+            example["premise"],
+            "hypothesis:",
+            example["hypothesis"],
+        ]
+        tgt_texts = [str(example["label"])]
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
+
+class AbductiveNLITaskDataset(AbstractTaskDataset):
+    name = "art"
+    label_list = ["0", "1", "2"]
+    task_specific_config = {"max_length": compute_task_max_decoding_length(label_list)}
+    split_to_data_split = {
+        "train": "train",
+        "validation": "validation",
+        "test": "validation",
+    }
+    metrics = [metrics.accuracy]
+
+    def preprocessor(self, example, add_prefix=True):
+        src_texts = [
+            "observation 1:",
+            example["observation_1"],
+            "observation 2:",
+            example["observation_2"],
+            "hypothesis 1:",
+            example["hypothesis_1"],
+            "hypothesis 2:",
+            example["hypothesis_2"],
+        ]
+        tgt_texts = [str(example["label"])]
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
+
 
 class QNLITaskDataset(AbstractTaskDataset):
     name = "qnli"
@@ -1046,9 +1100,29 @@ class CnnDailyMailDataset(AbstractTaskDataset):
     split_to_data_split = {"train": "train", "validation": "validation", "test": "test"}
     generation_task = True
 
+    def load_dataset(self, split: int):
+        return datasets.load_dataset(self.name, '3.0.0', split=split, script_version="master")
+
     def preprocessor(self, example, add_prefix=True):
-        src_texts = [example["document"]]
-        tgt_texts = [str(example["summary"])]
+        src_texts = [example["article"]]
+        tgt_texts = [example["highlights"]]
+        return self.seq2seq_format(
+            src_texts, tgt_texts, add_prefix, prefix="summarize:"
+        )
+
+class WikiLinguaDataset(AbstractTaskDataset):
+    name = "wiki_lingua_english_en"
+    task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 4}
+    metrics = [metrics.rouge]
+    split_to_data_split = {"train": "train", "validation": "validation", "test": "test"}
+    generation_task = True
+
+    def load_dataset(self, split: int):
+        return datasets.load_dataset("gem", self.name, split=split, script_version="master")
+
+    def preprocessor(self, example, add_prefix=True):
+        src_texts = [example["source"]]
+        tgt_texts = [str(example["target"])]
         return self.seq2seq_format(
             src_texts, tgt_texts, add_prefix, prefix="summarize:"
         )
@@ -1093,6 +1167,9 @@ TASK_MAPPING = OrderedDict(
         ("mrqa_reg", MrqaDataset),
         ("xsum", XSumTaskDataset),
         ("cnn_dailymail", CnnDailyMailDataset),
+        ("wiki_lingua", WikiLinguaDataset),
+        ("anli", AdversarialNLITaskDataset),
+        ("alphanli", AbductiveNLITaskDataset)
     ]
 )
 

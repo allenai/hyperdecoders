@@ -1,6 +1,6 @@
 {
-    "model_name_or_path": "t5-large",
-    "tokenizer_name": "t5-large",
+    "model_name_or_path": "t5-base",
+    "tokenizer_name": "t5-base",
     "learning_rate": 0.0003,
     "output_dir": "xsum_mnli",
     "max_source_length": 512,
@@ -42,7 +42,7 @@
     "hypernetwork_bottleneck": 128,
     "loss_scaling": false,
     
-    "tasks": ["xsum", "mnli"],
-    "eval_tasks": ["xsum", "mnli"]
+    "tasks": ["xsum", "cnn_dailymail", "wiki_lingua", "anli", "alphanli", "mnli"],
+    "eval_tasks": ["xsum", "cnn_dailymail", "wiki_lingua", "anli", "alphanli", "mnli"]
     }
     
