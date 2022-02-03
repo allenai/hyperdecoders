@@ -308,7 +308,7 @@ class T5Trainer(Trainer):
                 # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
                 xm.master_print(met.metrics_report())
 
-            if eval_task == 'squad' or eval_task == 'mrqa': # TODO: replace with list of 'squad eval tasks'
+            if eval_task == 'squad' or 'mrqa' in eval_task: # TODO: replace with list of 'squad eval tasks'
                 answer_results = defaultdict(list)
                 # we may have multiple answers for each q due to chunking (TODO: also report probs)
                 for qid, prob, prediction in zip(eval_dataset['id'], gen_probs, output.predictions):
@@ -722,6 +722,9 @@ class T5Trainer(Trainer):
             gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(-1)
             gen_probs = gen_probs.masked_fill(gen_sequences == self.tokenizer.pad_token_id, 0)
             # in case the batch is shorter than max length, the output should be padded
+            # nll loss
+            gen_probs = ((gen_sequences != 0).int() * torch.nn.CrossEntropyLoss(reduction='none')(input=probs.permute(0, 2, 1), target=gen_sequences)).nan_to_num().mean(dim=1)
+            
             if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
                 generated_tokens = self._pad_tensors_to_max_len(
                     generated_tokens, gen_kwargs["max_length"]

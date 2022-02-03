@@ -987,8 +987,8 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
     # TODO: this is fairly hideous, i pull out of batched form, add my rows,
     # then put it back in. There is probably a more efficient way to do this...
     def preprocessor(self, samples, split, add_prefix=False):
-        result = defaultdict(list)
         examples = []
+        result = defaultdict(list)
         for i in range(len(samples['qid'])):
             examples.append({
                 k: samples[k][i] for k in samples
@@ -1006,9 +1006,9 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
         self, split, n_obs=None, add_prefix=False, split_validation_test=False
     ):
         dataset = self.get_shuffled_sampled_split(split, n_obs)
-        if split == 'train':
+        if False: #split == 'train':
             # for the train split, we first downsample each dataset to balance
-            # out datasets a bit more. We then convert into chunks *after* this
+            # out datasets a bit more. We then convert into chunks after this
             datasets = []
             for subset in self.subsets:
                 subset_dataset = dataset.filter(lambda x: x['subset'] == subset)
@@ -1019,6 +1019,7 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
             functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
             remove_columns=dataset.column_names,
             batched=True, # so we can add rows.
+            load_from_cache_file=False
         )
         return dataset
 

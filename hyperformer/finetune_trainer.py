@@ -242,6 +242,9 @@ def main():
         task: dataset_class.get(task).get_label_size(tokenizer)
         for task in data_args.eval_tasks + data_args.tasks
     }
+    # fix for mrqa
+    if 'mrqa_reg' in task_weights:
+        task_weights['mrqa'] = task_weights['mrqa_reg']
 
     # Defines the metrics for evaluation.
     compute_metrics_fn = (
@@ -249,6 +252,11 @@ def main():
         if training_args.predict_with_generate
         else None
     )
+
+    collator_class = TaskCollator
+    if 'mrqa' in eval_datasets:
+        collator_class = MrqaTaskCollator
+
     # Defines the trainer.
     trainer = T5Trainer(
         model=model,
@@ -256,7 +264,7 @@ def main():
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_datasets,
-        data_collator=MrqaTaskCollator(
+        data_collator=collator_class(
             tokenizer,
             data_args,
             tpu_num_cores=training_args.tpu_num_cores,

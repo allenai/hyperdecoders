@@ -13,33 +13,36 @@ def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
     # context = context.replace('[DOC]', '</s>')
     # context = context.replace('[TLE]', '</s>')
     tokenized_output = tokenizer(context, return_offsets_mapping=True)
-    context_tokens = tokenized_output['input_ids']
+    context_tokens = tokenized_output['input_ids'][:-1]
     offsets = tokenized_output['offset_mapping'][:-1] # ignore the last (0,0) for </s>
-    remaining_length = max_length - start_len
+    remaining_length = max_length - start_len - 1 # for '</s>'
     while len(context_tokens) > 0:
-        chunk = context_tokens[:remaining_length]
-        context_tokens = context_tokens[remaining_length-stride:] # stride for some overlap
+        chunk = context_tokens[:remaining_length] + [1]
+        # edge case: when the chunk is entirely within, put in.
+        if len(context_tokens) <= remaining_length:
+            context_tokens = []
+        else:
+            context_tokens = context_tokens[remaining_length-stride:] # stride for some overlap
         offsets_chunk = offsets[:remaining_length]
+        if len(offsets_chunk) == 0:
+            break
         offsets = offsets[remaining_length-stride:]
         # answer may not be possible with this chunk. Teach model to answer with nothing.
         chunk_ans = ''
          # im not sure that answers and spans are the same order, but this seems fine.
         for i, span in enumerate(sample['detected_answers']['char_spans']):
-            # we might have only </s> left, so this handles that
-            if len(offsets_chunk) == 0:
-                break
             if span['start'][0] >= offsets_chunk[0][0] and span['end'][0] <= offsets_chunk[-1][-1]:
                 chunk_ans = sample['answers'][i]
+                yield {
+                    'question': sample['question'],
+                    'context': sample['context'],
+                    'input_ids': init_input_ids + chunk,
+                    'answer': chunk_ans,
+                    'qid': sample['qid'],
+                    'subset': sample['subset'],
+                    'task': 'mrqa'
+                }
                 break
-        yield {
-            'question': sample['question'],
-            'context': sample['context'],
-            'input_ids': init_input_ids + chunk,
-            'answer': chunk_ans,
-            'qid': sample['qid'],
-            'subset': sample['subset'],
-            'task': 'mrqa'
-        }
     
 def chunk_dataset(tokenizer, dataset, stride=128, max_length=512):
     for sample in dataset:
