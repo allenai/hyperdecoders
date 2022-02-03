@@ -33,16 +33,16 @@ def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
         for i, span in enumerate(sample['detected_answers']['char_spans']):
             if span['start'][0] >= offsets_chunk[0][0] and span['end'][0] <= offsets_chunk[-1][-1]:
                 chunk_ans = sample['answers'][i]
-                yield {
-                    'question': sample['question'],
-                    'context': sample['context'],
-                    'input_ids': init_input_ids + chunk,
-                    'answer': chunk_ans,
-                    'qid': sample['qid'],
-                    'subset': sample['subset'],
-                    'task': 'mrqa'
-                }
                 break
+        yield {
+            'question': sample['question'],
+            'context': sample['context'],
+            'input_ids': init_input_ids + chunk,
+            'answer': chunk_ans,
+            'qid': sample['qid'],
+            'subset': sample['subset'],
+            'task': 'mrqa'
+        }
     
 def chunk_dataset(tokenizer, dataset, stride=128, max_length=512):
     for sample in dataset:
