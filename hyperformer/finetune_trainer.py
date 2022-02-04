@@ -213,7 +213,7 @@ def main():
         {
             task: dataset_class.get(task, seed=data_args.data_seed).get_dataset(
                 split="validation",
-                n_obs=1600 if task == "xsum" else data_args.n_val,
+                n_obs=data_args.n_val,
                 add_prefix=True,
                 split_validation_test=training_args.split_validation_test,
             )

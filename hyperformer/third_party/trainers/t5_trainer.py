@@ -99,6 +99,7 @@ class T5Trainer(Trainer):
         self.multi_task_compute_metrics = multi_task_compute_metrics
         self.dataset_sizes = dataset_sizes
         self.data_args = data_args
+        self.compute_gen_probs = False
         self.vocab_size = (
             self.config.tgt_vocab_size
             if isinstance(self.config, FSMTConfig)
@@ -194,23 +195,23 @@ class T5Trainer(Trainer):
             )
         return scheduler
 
-    def _get_train_sampler(self) -> Optional[torch.utils.data.sampler.Sampler]:
-        if is_torch_tpu_available() and xm.xrt_world_size() > 1:
-            num_replicas = xm.xrt_world_size()
-            rank = xm.get_ordinal()
-        elif self.args.local_rank != -1:
-            num_replicas = torch.distributed.get_world_size()
-            rank = torch.distributed.get_rank()
-        else:
-            num_replicas = 1
-            rank = 0
-        return MultiTaskBatchSampler(
-            self.dataset_sizes,
-            self.args.train_batch_size,
-            self.args.temperature,
-            rank=rank,
-            num_replicas=num_replicas,
-        )
+    # def _get_train_sampler(self) -> Optional[torch.utils.data.sampler.Sampler]:
+    #     if is_torch_tpu_available() and xm.xrt_world_size() > 1:
+    #         num_replicas = xm.xrt_world_size()
+    #         rank = xm.get_ordinal()
+    #     elif self.args.local_rank != -1:
+    #         num_replicas = torch.distributed.get_world_size()
+    #         rank = torch.distributed.get_rank()
+    #     else:
+    #         num_replicas = 1
+    #         rank = 0
+    #     return MultiTaskBatchSampler(
+    #         self.dataset_sizes,
+    #         self.args.train_batch_size,
+    #         self.args.temperature,
+    #         rank=rank,
+    #         num_replicas=num_replicas,
+    #     )
 
     def _compute_loss(self, model, inputs, labels):
         task_weights = torch.tensor(inputs.pop("task_weights"), device=model.device)
@@ -238,21 +239,21 @@ class T5Trainer(Trainer):
             loss = (loss / task_weights.view(-1, 1, 1)).mean()
         return loss, logits
 
-    def get_train_dataloader(self) -> DataLoader:
-        """
-        Returns the training :class:`~torch.utils.data.DataLoader`.
+    # def get_train_dataloader(self) -> DataLoader:
+    #     """
+    #     Returns the training :class:`~torch.utils.data.DataLoader`.
 
-        Will use no sampler if :obj:`self.train_dataset` does not implement :obj:`__len__`, a random sampler (adapted
-        to distributed training if necessary) otherwise.
+    #     Will use no sampler if :obj:`self.train_dataset` does not implement :obj:`__len__`, a random sampler (adapted
+    #     to distributed training if necessary) otherwise.
 
-        Subclass and override this method if you want to inject some custom behavior.
-        """
-        multitask_sampler = self._get_train_sampler()
-        return DataLoader(
-            self.train_dataset,
-            batch_sampler=multitask_sampler,
-            collate_fn=self.data_collator,
-        )
+    #     Subclass and override this method if you want to inject some custom behavior.
+    #     """
+    #     multitask_sampler = self._get_train_sampler()
+    #     return DataLoader(
+    #         self.train_dataset,
+    #         batch_sampler=multitask_sampler,
+    #         collate_fn=self.data_collator,
+    #     )
 
     def compute_loss(self, model, inputs):
         labels = inputs.pop("labels")
@@ -719,12 +720,13 @@ class T5Trainer(Trainer):
             # calculate sequence probabilities
             gen_sequences = generated_output.sequences[:, 1:] # skip the bos token
             probs = torch.stack(generated_output.scores, dim=1)
-            gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(-1)
-            gen_probs = gen_probs.masked_fill(gen_sequences == self.tokenizer.pad_token_id, 0)
-            # in case the batch is shorter than max length, the output should be padded
-            # nll loss
-            gen_probs = ((gen_sequences != 0).int() * torch.nn.CrossEntropyLoss(reduction='none')(input=probs.permute(0, 2, 1), target=gen_sequences)).nan_to_num().mean(dim=1)
-            
+            if self.compute_gen_probs:
+                gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(-1)
+                gen_probs = gen_probs.masked_fill(gen_sequences == self.tokenizer.pad_token_id, 0)
+                # in case the batch is shorter than max length, the output should be padded
+                # nll loss
+                gen_probs = ((gen_sequences != 0).int() * torch.nn.CrossEntropyLoss(reduction='none')(input=probs.permute(0, 2, 1), target=gen_sequences)).nan_to_num().mean(dim=1)
+
             if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
                 generated_tokens = self._pad_tensors_to_max_len(
                     generated_tokens, gen_kwargs["max_length"]

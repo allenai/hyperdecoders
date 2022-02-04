@@ -712,7 +712,7 @@ class AdversarialNLITaskDataset(AbstractTaskDataset):
     split_to_data_split = {
         "train": "train",
         "validation": "dev",
-        "test": "test",
+        "test": "dev",
     }
     metrics = [metrics.accuracy]
     suffixes = ['_r1', '_r2', '_r3']
@@ -1082,7 +1082,7 @@ class XSumTaskDataset(AbstractTaskDataset):
     name = "xsum"
     task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 6}
     metrics = [metrics.rouge]
-    split_to_data_split = {"train": "train", "validation": "validation", "test": "test"}
+    split_to_data_split = {"train": "train", "validation": "validation", "test": "validation"}
     generation_task = True
 
     def preprocessor(self, example, add_prefix=True):
@@ -1097,7 +1097,7 @@ class CnnDailyMailDataset(AbstractTaskDataset):
     name = "cnn_dailymail"
     task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 4}
     metrics = [metrics.rouge]
-    split_to_data_split = {"train": "train", "validation": "validation", "test": "test"}
+    split_to_data_split = {"train": "train", "validation": "validation", "test": "validation"}
     generation_task = True
 
     def load_dataset(self, split: int):
@@ -1114,7 +1114,7 @@ class WikiLinguaDataset(AbstractTaskDataset):
     name = "wiki_lingua_english_en"
     task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 4}
     metrics = [metrics.rouge]
-    split_to_data_split = {"train": "train", "validation": "validation", "test": "test"}
+    split_to_data_split = {"train": "train", "validation": "validation", "test": "validation"}
     generation_task = True
 
     def load_dataset(self, split: int):
