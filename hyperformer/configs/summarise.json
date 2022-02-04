@@ -30,7 +30,7 @@
     "n_val": 1600,
     "metric_for_best_model": "average_metrics",
     "greater_is_better": true,
-    "max_steps": 200000,
+    "max_steps": 100000,
     "print_num_parameters": true,
     "encoder_adapter": "none",
     "decoder_adapter": "none",
