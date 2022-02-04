@@ -1,8 +1,8 @@
 {
-    "model_name_or_path": "t5-base",
-    "tokenizer_name": "t5-base",
+    "model_name_or_path": "google/t5-base-lm-adapt",
+    "tokenizer_name": "google/t5-base-lm-adapt",
     "learning_rate": 0.0003,
-    "output_dir": "xsum_mnli",
+    "output_dir": "nli_adapter",
     "max_source_length": 512,
     "max_target_length": 128,
     "val_max_target_length": 128,
@@ -27,6 +27,7 @@
     "evaluation_strategy": "steps",
     "save_steps": 5000,
     "eval_steps": 5000,
+    "n_val": 1600,
     "metric_for_best_model": "average_metrics",
     "greater_is_better": true,
     "max_steps": 200000,
@@ -42,7 +43,7 @@
     "hypernetwork_bottleneck": 128,
     "loss_scaling": false,
     
-    "tasks": ["xsum", "cnn_dailymail", "wiki_lingua", "anli", "alphanli", "mnli"],
-    "eval_tasks": ["xsum", "cnn_dailymail", "wiki_lingua", "anli", "alphanli", "mnli"]
+    "tasks": ["anli", "alphanli", "mnli"],
+    "eval_tasks": ["anli", "alphanli", "mnli"]
     }
     
