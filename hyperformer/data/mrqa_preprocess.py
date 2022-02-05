@@ -18,22 +18,23 @@ def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
     remaining_length = max_length - start_len - 1 # for '</s>'
     while len(context_tokens) > 0:
         chunk = context_tokens[:remaining_length] + [1]
-        # edge case: when the chunk is entirely within, put in.
+        offsets_chunk = offsets[:remaining_length]
+        # edge case: when the chunk is entirely within, finish up.
+        # Otherwise we might add more chunks for sake of stride.
         if len(context_tokens) <= remaining_length:
             context_tokens = []
+            offsets = []
         else:
             context_tokens = context_tokens[remaining_length-stride:] # stride for some overlap
-        offsets_chunk = offsets[:remaining_length]
-        if len(offsets_chunk) == 0:
-            break
-        offsets = offsets[remaining_length-stride:]
-        # answer may not be possible with this chunk. Teach model to answer with nothing.
-        chunk_ans = ''
-         # im not sure that answers and spans are the same order, but this seems fine.
-        for i, span in enumerate(sample['detected_answers']['char_spans']):
-            if span['start'][0] >= offsets_chunk[0][0] and span['end'][0] <= offsets_chunk[-1][-1]:
-                chunk_ans = sample['answers'][i]
-                break
+            offsets = offsets[remaining_length-stride:]
+        # assuming answer strings in same order as char spans.
+        def detect_answer(sample, offsets_chunk):
+            for i, span in enumerate(sample['detected_answers']['char_spans']):
+                for start, end in zip(span['start'], span['end']): # we can have multiple answer instances
+                    if start >= offsets_chunk[0][0] and end <= offsets_chunk[-1][-1]:
+                        return sample['answers'][i]
+            return '' # if we find nothing.
+        chunk_ans = detect_answer(sample, offsets_chunk)
         yield {
             'question': sample['question'],
             'context': sample['context'],
