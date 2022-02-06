@@ -1,6 +1,6 @@
 {
-    "model_name_or_path": "google/t5-base-lm-adapt",
-    "tokenizer_name": "google/t5-base-lm-adapt",
+    "model_name_or_path": "google/t5-large-lm-adapt",
+    "tokenizer_name": "google/t5-large-lm-adapt",
     "learning_rate": 0.0003,
     "output_dir": "/hyperadapter/summarise_nli_adapter",
     "max_source_length": 512,

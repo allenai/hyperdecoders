@@ -82,6 +82,7 @@ class T5Trainer(Trainer):
         dataset_sizes=None,
         adapter_config=None,
         multi_task_compute_metrics=None,
+        compute_gen_probs=False,
         *args,
         **kwargs,
     ):
@@ -99,7 +100,7 @@ class T5Trainer(Trainer):
         self.multi_task_compute_metrics = multi_task_compute_metrics
         self.dataset_sizes = dataset_sizes
         self.data_args = data_args
-        self.compute_gen_probs = True
+        self.compute_gen_probs = compute_gen_probs
         self.vocab_size = (
             self.config.tgt_vocab_size
             if isinstance(self.config, FSMTConfig)
