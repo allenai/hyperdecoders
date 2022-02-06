@@ -276,7 +276,7 @@ def main():
         compute_metrics=None,
         multi_task_compute_metrics=compute_metrics_fn,
         data_args=data_args,
-        compute_gen_probs=compute_gen_probs
+        compute_gen_probs=compute_gen_probs,
         dataset_sizes=dataset_sizes if training_args.do_train else None,
     )
 
