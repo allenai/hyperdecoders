@@ -28,8 +28,18 @@ from transformers.optimization import (
 )
 from transformers.deepspeed import deepspeed_init
 from transformers.trainer_callback import TrainerState
-from transformers.trainer_utils import TrainOutput, PredictionOutput, set_seed, denumpify_detensorize, EvalPrediction
-from transformers.trainer_pt_utils import DistributedTensorGatherer, SequentialDistributedSampler, nested_concat
+from transformers.trainer_utils import (
+    TrainOutput,
+    PredictionOutput,
+    set_seed,
+    denumpify_detensorize,
+    EvalPrediction,
+)
+from transformers.trainer_pt_utils import (
+    DistributedTensorGatherer,
+    SequentialDistributedSampler,
+    nested_concat,
+)
 
 # Check if Pytorch version >= 1.6 to switch between Native AMP and Apex
 if version.parse(torch.__version__) < version.parse("1.6"):
@@ -83,7 +93,7 @@ class T5Trainer(Trainer):
         adapter_config=None,
         multi_task_compute_metrics=None,
         compute_gen_probs=False,
-        answer_output_file='predicted_answers.json',
+        answer_output_file="predicted_answers.json",
         *args,
         **kwargs,
     ):
@@ -308,12 +318,23 @@ class T5Trainer(Trainer):
                 # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
                 xm.master_print(met.metrics_report())
 
-            if eval_task == 'squad' or 'mrqa' in eval_task: # TODO: replace with list of 'squad eval tasks'
+            if (
+                eval_task == "squad" or "mrqa" in eval_task
+            ):  # TODO: replace with list of 'squad eval tasks'
                 answer_results = defaultdict(list)
                 # we may have multiple answers for each q due to chunking (TODO: also report probs)
-                for qid, prob, prediction in zip(eval_dataset['id'], gen_probs, output.predictions):
-                    answer_results[qid].append((self.tokenizer.decode(prediction, skip_special_tokens=True), prob.tolist()))
-                with open(os.path.join(self.args.output_dir, self.answer_output_file), 'w') as f:
+                for qid, prob, prediction in zip(
+                    eval_dataset["id"], gen_probs, output.predictions
+                ):
+                    answer_results[qid].append(
+                        (
+                            self.tokenizer.decode(prediction, skip_special_tokens=True),
+                            prob.tolist(),
+                        )
+                    )
+                with open(
+                    os.path.join(self.args.output_dir, self.answer_output_file), "w"
+                ) as f:
                     json.dump(answer_results, f, indent=4)
 
             tasks_metric = {eval_task + "_" + k: v for k, v in output.metrics.items()}
@@ -532,9 +553,7 @@ class T5Trainer(Trainer):
             if isinstance(train_dataloader, DataLoader) and (
                 isinstance(train_dataloader.sampler, DistributedSampler)
                 or isinstance(train_dataloader.batch_sampler, MultiTaskBatchSampler)
-                or isinstance(
-                    train_dataloader.batch_sampler, MultiTaskBatchSampler
-                )
+                or isinstance(train_dataloader.batch_sampler, MultiTaskBatchSampler)
             ):
                 if isinstance(train_dataloader.sampler, MultiTaskBatchSampler):
                     train_dataloader.sampler.set_epoch(epoch)
@@ -648,7 +667,10 @@ class T5Trainer(Trainer):
             "\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n"
         )
 
-        if self.args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
+        if (
+            self.args.load_best_model_at_end
+            and self.state.best_model_checkpoint is not None
+        ):
             logger.info(
                 f"Loading best model from {self.state.best_model_checkpoint} (score: {self.state.best_metric})."
             )
@@ -656,7 +678,9 @@ class T5Trainer(Trainer):
                 self.model = model.from_pretrained(self.state.best_model_checkpoint)
                 self.model = self.model.to(self.args.device)
             else:
-                state_dict = torch.load(os.path.join(self.state.best_model_checkpoint, WEIGHTS_NAME))
+                state_dict = torch.load(
+                    os.path.join(self.state.best_model_checkpoint, WEIGHTS_NAME)
+                )
                 self.model.load_state_dict(state_dict)
 
         if self._total_flos is not None:
@@ -717,14 +741,27 @@ class T5Trainer(Trainer):
             )
             generated_tokens = generated_output.sequences
             # calculate sequence probabilities
-            gen_sequences = generated_output.sequences[:, 1:] # skip the bos token
+            gen_sequences = generated_output.sequences[:, 1:]  # skip the bos token
             probs = torch.stack(generated_output.scores, dim=1)
             if self.compute_gen_probs:
-                gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(-1)
-                gen_probs = gen_probs.masked_fill(gen_sequences == self.tokenizer.pad_token_id, 0)
+                gen_probs = torch.gather(probs, 2, gen_sequences[:, :, None]).squeeze(
+                    -1
+                )
+                gen_probs = gen_probs.masked_fill(
+                    gen_sequences == self.tokenizer.pad_token_id, 0
+                )
                 # in case the batch is shorter than max length, the output should be padded
                 # nll loss
-                gen_probs = ((gen_sequences != 0).int() * torch.nn.CrossEntropyLoss(reduction='none')(input=probs.permute(0, 2, 1), target=gen_sequences)).nan_to_num().mean(dim=1)
+                gen_probs = (
+                    (
+                        (gen_sequences != 0).int()
+                        * torch.nn.CrossEntropyLoss(reduction="none")(
+                            input=probs.permute(0, 2, 1), target=gen_sequences
+                        )
+                    )
+                    .nan_to_num()
+                    .mean(dim=1)
+                )
 
             if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
                 generated_tokens = self._pad_tensors_to_max_len(
@@ -763,7 +800,9 @@ class T5Trainer(Trainer):
         if not isinstance(dataloader.dataset, collections.abc.Sized):
             raise ValueError("dataset must implement __len__")
         prediction_loss_only = (
-            prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
+            prediction_loss_only
+            if prediction_loss_only is not None
+            else self.args.prediction_loss_only
         )
 
         # if eval is called w/o train init deepspeed here
@@ -771,7 +810,9 @@ class T5Trainer(Trainer):
 
             # XXX: eval doesn't have `resume_from_checkpoint` arg but we should be able to do eval
             # from the checkpoint eventually
-            deepspeed_engine, _, _ = deepspeed_init(self, num_training_steps=0, resume_from_checkpoint=None)
+            deepspeed_engine, _, _ = deepspeed_init(
+                self, num_training_steps=0, resume_from_checkpoint=None
+            )
             self.model = deepspeed_engine.module
             self.model_wrapped = deepspeed_engine
             self.deepspeed = deepspeed_engine
@@ -800,21 +841,33 @@ class T5Trainer(Trainer):
 
         world_size = max(1, self.args.world_size)
 
-        eval_losses_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=batch_size)
+        eval_losses_gatherer = DistributedTensorGatherer(
+            world_size, num_examples, make_multiple_of=batch_size
+        )
         if not prediction_loss_only:
             # The actual number of eval_sample can be greater than num_examples in distributed settings (when we pass
             # a batch size to the sampler)
             make_multiple_of = None
-            if hasattr(dataloader, "sampler") and isinstance(dataloader.sampler, SequentialDistributedSampler):
+            if hasattr(dataloader, "sampler") and isinstance(
+                dataloader.sampler, SequentialDistributedSampler
+            ):
                 make_multiple_of = dataloader.sampler.batch_size
-            preds_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
-            probs_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
-            labels_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+            preds_gatherer = DistributedTensorGatherer(
+                world_size, num_examples, make_multiple_of=make_multiple_of
+            )
+            probs_gatherer = DistributedTensorGatherer(
+                world_size, num_examples, make_multiple_of=make_multiple_of
+            )
+            labels_gatherer = DistributedTensorGatherer(
+                world_size, num_examples, make_multiple_of=make_multiple_of
+            )
 
         model.eval()
 
         if is_torch_tpu_available():
-            dataloader = pl.ParallelLoader(dataloader, [self.args.device]).per_device_loader(self.args.device)
+            dataloader = pl.ParallelLoader(
+                dataloader, [self.args.device]
+            ).per_device_loader(self.args.device)
 
         if self.args.past_index >= 0:
             self._past = None
@@ -822,47 +875,95 @@ class T5Trainer(Trainer):
         self.callback_handler.eval_dataloader = dataloader
 
         for step, inputs in enumerate(dataloader):
-            loss, logits, labels, gen_probs = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            loss, logits, labels, gen_probs = self.prediction_step(
+                model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+            )
             if loss is not None:
                 losses = loss.repeat(batch_size)
-                losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+                losses_host = (
+                    losses
+                    if losses_host is None
+                    else torch.cat((losses_host, losses), dim=0)
+                )
             if logits is not None:
-                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+                preds_host = (
+                    logits
+                    if preds_host is None
+                    else nested_concat(preds_host, logits, padding_index=-100)
+                )
             if gen_probs is not None:
-                probs_host = gen_probs if probs_host is None else nested_concat(probs_host, gen_probs, padding_index=-100)
+                probs_host = (
+                    gen_probs
+                    if probs_host is None
+                    else nested_concat(probs_host, gen_probs, padding_index=-100)
+                )
             if labels is not None:
-                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
-            self.control = self.callback_handler.on_prediction_step(self.args, self.state, self.control)
+                labels_host = (
+                    labels
+                    if labels_host is None
+                    else nested_concat(labels_host, labels, padding_index=-100)
+                )
+            self.control = self.callback_handler.on_prediction_step(
+                self.args, self.state, self.control
+            )
 
             # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
-            if self.args.eval_accumulation_steps is not None and (step + 1) % self.args.eval_accumulation_steps == 0:
-                eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
+            if (
+                self.args.eval_accumulation_steps is not None
+                and (step + 1) % self.args.eval_accumulation_steps == 0
+            ):
+                eval_losses_gatherer.add_arrays(
+                    self._gather_and_numpify(losses_host, "eval_losses")
+                )
                 if not prediction_loss_only:
-                    preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
-                    probs_gatherer.add_arrays(self._gather_and_numpify(probs_host, "gen_probs"))
-                    labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+                    preds_gatherer.add_arrays(
+                        self._gather_and_numpify(preds_host, "eval_preds")
+                    )
+                    probs_gatherer.add_arrays(
+                        self._gather_and_numpify(probs_host, "gen_probs")
+                    )
+                    labels_gatherer.add_arrays(
+                        self._gather_and_numpify(labels_host, "eval_label_ids")
+                    )
 
                 # Set back to None to begin a new accumulation
-                losses_host, preds_host, probs_host, labels_host = None, None, None, None
+                losses_host, preds_host, probs_host, labels_host = (
+                    None,
+                    None,
+                    None,
+                    None,
+                )
 
         if self.args.past_index and hasattr(self, "_past"):
             # Clean the state at the end of the evaluation loop
             delattr(self, "_past")
 
         # Gather all remaining tensors and put them back on the CPU
-        eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
+        eval_losses_gatherer.add_arrays(
+            self._gather_and_numpify(losses_host, "eval_losses")
+        )
         if not prediction_loss_only:
-            preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
+            preds_gatherer.add_arrays(
+                self._gather_and_numpify(preds_host, "eval_preds")
+            )
             probs_gatherer.add_arrays(self._gather_and_numpify(probs_host, "gen_probs"))
-            labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+            labels_gatherer.add_arrays(
+                self._gather_and_numpify(labels_host, "eval_label_ids")
+            )
 
         eval_loss = eval_losses_gatherer.finalize()
         preds = preds_gatherer.finalize() if not prediction_loss_only else None
         gen_probs = probs_gatherer.finalize() if not prediction_loss_only else None
         label_ids = labels_gatherer.finalize() if not prediction_loss_only else None
 
-        if self.compute_metrics is not None and preds is not None and label_ids is not None:
-            metrics = self.compute_metrics(EvalPrediction(predictions=preds, label_ids=label_ids))
+        if (
+            self.compute_metrics is not None
+            and preds is not None
+            and label_ids is not None
+        ):
+            metrics = self.compute_metrics(
+                EvalPrediction(predictions=preds, label_ids=label_ids)
+            )
         else:
             metrics = {}
 
@@ -877,8 +978,11 @@ class T5Trainer(Trainer):
             if not key.startswith(f"{metric_key_prefix}_"):
                 metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
 
-        return PredictionOutput(predictions=preds, label_ids=label_ids, metrics=metrics), gen_probs
-    
+        return (
+            PredictionOutput(predictions=preds, label_ids=label_ids, metrics=metrics),
+            gen_probs,
+        )
+
     def _pad_tensors_to_max_len(self, tensor, max_length):
         # If PAD token is not defined at least EOS token has to be defined
         pad_token_id = (

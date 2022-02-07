@@ -54,7 +54,9 @@ class T5LayerFFWithAdapter(T5LayerFF):
     def forward(self, hidden_states):
         normed_states = self.layer_norm(hidden_states)
         forwarded_states = self.DenseReluDense(normed_states)
-        adapter_input = normed_states if self.config.adapter_norm_input else hidden_states
+        adapter_input = (
+            normed_states if self.config.adapter_norm_input else hidden_states
+        )
         hidden_states = (
             hidden_states
             + self.dropout(forwarded_states)
@@ -69,6 +71,7 @@ class T5BlockWithAdapter(T5Block):
             config, has_relative_attention_bias=has_relative_attention_bias
         )
         self.layer[-1] = T5LayerFFWithAdapter(config)
+
 
 def mean_pooling(hidden_state, attention_mask):
     input_masked = hidden_state * attention_mask.unsqueeze(-1)
@@ -119,7 +122,13 @@ class T5StackWithAdapter(T5Stack):
         if self.is_decoder and self.config.decoder_adapter == "generated":
             self.apply_params_to_adapters(
                 encoder_hidden_states.size(0),
-                self.param_gen(self.mlp(mean_pooling(encoder_hidden_states, kwargs['encoder_attention_mask']))),
+                self.param_gen(
+                    self.mlp(
+                        mean_pooling(
+                            encoder_hidden_states, kwargs["encoder_attention_mask"]
+                        )
+                    )
+                ),
             )
         elif (not self.is_decoder) and self.config.encoder_adapter == "generated":
             # for encoder generation, we first pass through the encoder, then set encoder adapters based on this.
@@ -131,14 +140,22 @@ class T5StackWithAdapter(T5Stack):
             )
             self.apply_params_to_adapters(
                 input_ids.size(0),
-                self.param_gen(self.mlp(mean_pooling(res.last_hidden_state, kwargs['attention_mask']))),
+                self.param_gen(
+                    self.mlp(
+                        mean_pooling(res.last_hidden_state, kwargs["attention_mask"])
+                    )
+                ),
             )
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             not self.is_decoder and self.config.encoder_adapter == "task"
-        ):  
+        ):
             # at test time, we just average the embeddings.
             if self.config.mean_task_embeddings:
-                task_embed = self.adapter_task_embedding.weight.mean(dim=0).unsqueeze(0).repeat(input_ids.size(0), 1)
+                task_embed = (
+                    self.adapter_task_embedding.weight.mean(dim=0)
+                    .unsqueeze(0)
+                    .repeat(input_ids.size(0), 1)
+                )
             else:
                 indices = torch.tensor(
                     [self.config.tasks.index(task) for task in tasks],
@@ -160,6 +177,7 @@ class T5StackWithAdapter(T5Stack):
     def apply_params_to_adapters(self, batch_size, generated_params):
         for param, block in zip(generated_params, self.block):
             block.layer[-1].adapter_layer.apply_adapter_params(batch_size, *param)
+
 
 class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):
     def __init__(self, config):
@@ -189,7 +207,7 @@ class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):
         cross_attn_head_mask=None,
         use_cache=None,
         encoder_outputs=None,
-        **kwargs
+        **kwargs,
     ):
 
         # cut decoder_input_ids if past is used
@@ -207,7 +225,6 @@ class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):
             "use_cache": use_cache,
             "tasks": kwargs["tasks"],
         }
-
 
     def forward(
         self,

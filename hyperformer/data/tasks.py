@@ -189,7 +189,7 @@ class AbstractTaskDataset(abc.ABC):
         tgt_strs: List[str],
         add_prefix: bool = False,
         prefix: str = None,
-        id: str = None
+        id: str = None,
     ):
         src_prefix = self.name if prefix is None else prefix
         src_strs = [src_prefix] + src_strs if add_prefix else src_strs
@@ -197,7 +197,7 @@ class AbstractTaskDataset(abc.ABC):
             "src_texts": " ".join(src_strs),
             "tgt_texts": " ".join(tgt_strs),
             "task": self.name,
-            "id": id # for squad, we need to save id: answer mapping.
+            "id": id,  # for squad, we need to save id: answer mapping.
         }
 
     def get_label_size(self, tokenizer):
@@ -705,6 +705,7 @@ class MNLITaskDataset(AbstractTaskDataset):
         tgt_texts = [str(example["label"])]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
 
+
 class AdversarialNLITaskDataset(AbstractTaskDataset):
     name = "anli"
     label_list = ["0", "1", "2"]
@@ -715,7 +716,7 @@ class AdversarialNLITaskDataset(AbstractTaskDataset):
         "test": "dev",
     }
     metrics = [metrics.accuracy]
-    suffixes = ['_r1', '_r2', '_r3']
+    suffixes = ["_r1", "_r2", "_r3"]
 
     def load_dataset(self, split):
         # anli has 3 subsplits, we just combine these following exT5
@@ -733,6 +734,7 @@ class AdversarialNLITaskDataset(AbstractTaskDataset):
         ]
         tgt_texts = [str(example["label"])]
         return self.seq2seq_format(src_texts, tgt_texts, add_prefix)
+
 
 class AbductiveNLITaskDataset(AbstractTaskDataset):
     name = "art"
@@ -998,13 +1000,12 @@ class SquadDataset(AbstractTaskDataset):
     def preprocessor(self, example, add_prefix=False):
         src_texts = ["question:", example["question"], "context:", example["context"]]
         tgt_texts = [str(example["answers"]["text"][0])]
-        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, id=example['id'])
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, id=example["id"])
+
 
 class MrqaDataset(AbstractTaskDataset):
     name = "mrqa"
-    task_specific_config = {
-        "max_length": 64
-    }
+    task_specific_config = {"max_length": 64}
     split_to_data_split = {
         "train": "train",
         "validation": "validation",
@@ -1016,14 +1017,13 @@ class MrqaDataset(AbstractTaskDataset):
     def preprocessor(self, example, add_prefix=False):
         src_texts = ["question:", example["question"], "context:", example["context"]]
         tgt_texts = [str(example["answers"][0])]
-        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, id=example['qid'])
+        return self.seq2seq_format(src_texts, tgt_texts, add_prefix, id=example["qid"])
+
 
 # mrqa with chunking preprocessing. Kept separate in case we want to use unchunked.
 class ChunkedMrqaDataset(AbstractTaskDataset):
     name = "mrqa"
-    task_specific_config = {
-        "max_length": 64
-    }
+    task_specific_config = {"max_length": 64}
     split_to_data_split = {
         "train": "train",
         "validation": "validation",
@@ -1032,10 +1032,17 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
     metrics = [metrics.squad_metrics]
     generation_task = True
 
-    def __init__(self, seed=42, tokenizer=T5TokenizerFast.from_pretrained('t5-base')):
+    def __init__(self, seed=42, tokenizer=T5TokenizerFast.from_pretrained("t5-base")):
         self.seed = seed
         self.tokenizer = tokenizer
-        self.subsets = ['HotpotQA', 'NaturalQuestionsShort', 'NewsQA', 'SearchQA', 'SQuAD', 'TriviaQA-web']
+        self.subsets = [
+            "HotpotQA",
+            "NaturalQuestionsShort",
+            "NewsQA",
+            "SearchQA",
+            "SQuAD",
+            "TriviaQA-web",
+        ]
         self.filter_nulls = False
 
     def toggle_null_filter(self):
@@ -1046,17 +1053,19 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
     def preprocessor(self, samples, split, add_prefix=False):
         examples = []
         result = defaultdict(list)
-        for i in range(len(samples['qid'])):
-            examples.append({
-                k: samples[k][i] for k in samples
-            })
+        for i in range(len(samples["qid"])):
+            examples.append({k: samples[k][i] for k in samples})
         for sample in examples:
-            for chunked_sample in chunk_sample(self.tokenizer, sample, filter_nulls=self.filter_nulls and split == 'train'):
+            for chunked_sample in chunk_sample(
+                self.tokenizer,
+                sample,
+                filter_nulls=self.filter_nulls and split == "train",
+            ):
                 for key in chunked_sample:
                     result[key].append(chunked_sample[key])
         # little bit of housekeeping
-        result['id'] = result['qid']
-        result['task'] = result['subset']
+        result["id"] = result["qid"]
+        result["task"] = result["subset"]
         return result
 
     def get_dataset(
@@ -1066,7 +1075,7 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
         dataset = dataset.map(
             functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
             remove_columns=dataset.column_names,
-            batched=True, # so we can add rows.
+            batched=True,  # so we can add rows.
         )
         return dataset
 
@@ -1075,7 +1084,11 @@ class XSumTaskDataset(AbstractTaskDataset):
     name = "xsum"
     task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 6}
     metrics = [metrics.rouge]
-    split_to_data_split = {"train": "train", "validation": "validation", "test": "validation"}
+    split_to_data_split = {
+        "train": "train",
+        "validation": "validation",
+        "test": "validation",
+    }
     generation_task = True
 
     def preprocessor(self, example, add_prefix=True):
@@ -1090,11 +1103,17 @@ class CnnDailyMailDataset(AbstractTaskDataset):
     name = "cnn_dailymail"
     task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 4}
     metrics = [metrics.rouge]
-    split_to_data_split = {"train": "train", "validation": "validation", "test": "validation"}
+    split_to_data_split = {
+        "train": "train",
+        "validation": "validation",
+        "test": "validation",
+    }
     generation_task = True
 
     def load_dataset(self, split: int):
-        return datasets.load_dataset(self.name, '3.0.0', split=split, script_version="master")
+        return datasets.load_dataset(
+            self.name, "3.0.0", split=split, script_version="master"
+        )
 
     def preprocessor(self, example, add_prefix=True):
         src_texts = [example["article"]]
@@ -1103,15 +1122,22 @@ class CnnDailyMailDataset(AbstractTaskDataset):
             src_texts, tgt_texts, add_prefix, prefix="summarize:"
         )
 
+
 class WikiLinguaDataset(AbstractTaskDataset):
     name = "wiki_lingua_english_en"
     task_specific_config = {"max_length": 60, "min_length": 10, "num_beams": 4}
     metrics = [metrics.rouge]
-    split_to_data_split = {"train": "train", "validation": "validation", "test": "validation"}
+    split_to_data_split = {
+        "train": "train",
+        "validation": "validation",
+        "test": "validation",
+    }
     generation_task = True
 
     def load_dataset(self, split: int):
-        return datasets.load_dataset("gem", self.name, split=split, script_version="master")
+        return datasets.load_dataset(
+            "gem", self.name, split=split, script_version="master"
+        )
 
     def preprocessor(self, example, add_prefix=True):
         src_texts = [example["source"]]
@@ -1162,7 +1188,7 @@ TASK_MAPPING = OrderedDict(
         ("cnn_dailymail", CnnDailyMailDataset),
         ("wiki_lingua", WikiLinguaDataset),
         ("anli", AdversarialNLITaskDataset),
-        ("alphanli", AbductiveNLITaskDataset)
+        ("alphanli", AbductiveNLITaskDataset),
     ]
 )
 

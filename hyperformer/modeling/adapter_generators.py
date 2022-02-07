@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 
 
-
 def hyperfanin_init_weight(linear_layer, hypernet_in, mainnet_in):
     bound = 1e-3 * math.sqrt(3 / (hypernet_in * mainnet_in))
     nn.init.uniform_(linear_layer.weight, -bound, bound)

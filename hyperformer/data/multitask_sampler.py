@@ -9,6 +9,7 @@ from typing import TypeVar, Optional, List
 
 T_co = TypeVar("T_co", covariant=True)
 
+
 class MultiTaskBatchSampler(Sampler[T_co]):
     """Defines a sampler to sample multiple datasets with temperature sampling
     in a distributed fashion."""
@@ -150,11 +151,8 @@ class MultiTaskBatchSampler(Sampler[T_co]):
 
 class EvenMultiTaskSampler(MultiTaskBatchSampler[T_co]):
     """Sampler with even balance between datasets"""
+
     def generate_tasks_distribution(self):
         total_size = len(self.dataset_sizes)
-        weights = np.array(
-            [
-                (1 / total_size) for _ in self.dataset_sizes
-            ]
-        )
+        weights = np.array([(1 / total_size) for _ in self.dataset_sizes])
         return torch.as_tensor(weights, dtype=torch.double)

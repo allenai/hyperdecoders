@@ -32,7 +32,14 @@ from training_args import (
     DataTrainingArguments,
     AdapterTrainingArguments,
 )
-from utils import get_last_checkpoint_path, freeze_model, unfreeze_adapter_params_encoder, unfreeze_adapter_params_decoder, unfreeze_encoder, unfreeze_decoder
+from utils import (
+    get_last_checkpoint_path,
+    freeze_model,
+    unfreeze_adapter_params_encoder,
+    unfreeze_adapter_params_decoder,
+    unfreeze_encoder,
+    unfreeze_decoder,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +100,7 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO if training_args.local_rank in [-1, 0] else logging.WARN,
         filename=os.path.join(training_args.output_dir, "log.txt"),
-        filemode='w+'
+        filemode="w+",
     )
     logger.addHandler(logging.StreamHandler(sys.stdout))
     logger.warning(
@@ -136,8 +143,15 @@ def main():
     config.update(dataclasses.asdict(adapter_args))
     all_tasks = list(set(data_args.tasks + data_args.eval_tasks))
     # mrqa is a single 'task' with many sub-tasks
-    if 'mrqa' or 'mrqa_reg' in data_args.tasks + data_args.eval_tasks:
-        all_tasks += ['HotpotQA', 'NaturalQuestionsShort', 'NewsQA', 'SearchQA', 'SQuAD', 'TriviaQA-web']
+    if "mrqa" or "mrqa_reg" in data_args.tasks + data_args.eval_tasks:
+        all_tasks += [
+            "HotpotQA",
+            "NaturalQuestionsShort",
+            "NewsQA",
+            "SearchQA",
+            "SQuAD",
+            "TriviaQA-web",
+        ]
     config.update({"tasks": all_tasks})
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -210,8 +224,8 @@ def main():
             )
             for task in data_args.tasks
         ]
-        if 'mrqa' in data_args.tasks and data_args.filter_nulls:
-            mrqa = train_datasets[data_args.tasks.index('mrqa')]
+        if "mrqa" in data_args.tasks and data_args.filter_nulls:
+            mrqa = train_datasets[data_args.tasks.index("mrqa")]
             mrqa.toggle_null_filter()
         dataset_sizes = [len(train_dataset) for train_dataset in train_datasets]
         train_dataset = datasets.concatenate_datasets(train_datasets)
@@ -253,7 +267,7 @@ def main():
 
     collator_class = TaskCollator
     compute_gen_probs = False
-    if 'mrqa' in eval_datasets:
+    if "mrqa" in eval_datasets:
         collator_class = MrqaTaskCollator
         compute_gen_probs = True
 
@@ -324,7 +338,7 @@ def main():
 
     if training_args.do_test:
         # to avoid overwriting
-        trainer.answer_output_file = 'predicted_answers_test.json'
+        trainer.answer_output_file = "predicted_answers_test.json"
         trainer.evaluate(test_dataset)
 
 
