@@ -135,13 +135,17 @@ class T5StackWithAdapter(T5Stack):
             )
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             not self.is_decoder and self.config.encoder_adapter == "task"
-        ):
-            indices = torch.tensor(
-                [self.config.tasks.index(task) for task in tasks],
-                device=input_ids.device,
-                dtype=torch.long,
-            )
-            task_embed = self.adapter_task_embedding(indices)
+        ):  
+            # at test time, we just average the embeddings.
+            if self.config.mean_task_embeddings:
+                task_embed = self.adapter_task_embedding.weight.mean(dim=0).unsqueeze(0).repeat(input_ids.size(0), 1)
+            else:
+                indices = torch.tensor(
+                    [self.config.tasks.index(task) for task in tasks],
+                    device=input_ids.device,
+                    dtype=torch.long,
+                )
+                task_embed = self.adapter_task_embedding(indices)
             self.apply_params_to_adapters(input_ids.size(0), self.param_gen(task_embed))
         return super().forward(
             input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs

@@ -134,7 +134,11 @@ def main():
         cache_dir=model_args.cache_dir,
     )
     config.update(dataclasses.asdict(adapter_args))
-    config.update({"tasks": list(set(data_args.tasks + data_args.eval_tasks))})
+    all_tasks = list(set(data_args.tasks + data_args.eval_tasks))
+    # mrqa is a single 'task' with many sub-tasks
+    if 'mrqa' or 'mrqa_reg' in data_args.tasks + data_args.eval_tasks:
+        all_tasks += ['HotpotQA', 'NaturalQuestionsShort', 'NewsQA', 'SearchQA', 'SQuAD', 'TriviaQA-web']
+    config.update({"tasks": all_tasks})
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name
@@ -206,6 +210,9 @@ def main():
             )
             for task in data_args.tasks
         ]
+        if 'mrqa' in data_args.tasks and data_args.filter_nulls:
+            mrqa = train_datasets[data_args.tasks.index('mrqa')]
+            mrqa.toggle_null_filter()
         dataset_sizes = [len(train_dataset) for train_dataset in train_datasets]
         train_dataset = datasets.concatenate_datasets(train_datasets)
     training_args.remove_unused_columns = False
@@ -237,15 +244,6 @@ def main():
         else None
     )
 
-    # setup loss weighting for tasks, using muppet system
-    task_weights = {
-        dataset_class.get(task).name: dataset_class.get(task).get_label_size(tokenizer)
-        for task in data_args.eval_tasks + data_args.tasks
-    }
-    # fix for mrqa
-    if 'mrqa_reg' in task_weights:
-        task_weights['mrqa'] = task_weights['mrqa_reg']
-
     # Defines the metrics for evaluation.
     compute_metrics_fn = (
         build_compute_metrics_fn(data_args.eval_tasks, tokenizer)
@@ -270,7 +268,6 @@ def main():
             tokenizer,
             data_args,
             tpu_num_cores=training_args.tpu_num_cores,
-            task_weights=task_weights,
         ),
         tokenizer=tokenizer,
         compute_metrics=None,

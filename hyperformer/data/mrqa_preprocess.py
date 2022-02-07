@@ -4,7 +4,7 @@ For this version, we chunk the dataset into 512-length
 chunks, to simulate bert-style preprocessing. 
 '''
 
-def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
+def chunk_sample(tokenizer, sample, stride=128, max_length=512, filter_nulls=False):
     initial_sample = f"question: {sample['question']} context: "
     init_input_ids = tokenizer(initial_sample, add_special_tokens=False)['input_ids']
     start_len = len(init_input_ids)
@@ -35,6 +35,9 @@ def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
                         return sample['answers'][i]
             return '' # if we find nothing.
         chunk_ans = detect_answer(sample, offsets_chunk)
+        # sometimes we might want to filter out chunks without answers
+        if filter_nulls and chunk_ans == '':
+            continue
         yield {
             'question': sample['question'],
             'context': sample['context'],
@@ -44,10 +47,10 @@ def chunk_sample(tokenizer, sample, is_train, stride=128, max_length=512):
             'subset': sample['subset'],
             'task': 'mrqa'
         }
-    
-def chunk_dataset(tokenizer, dataset, stride=128, max_length=512):
+
+def chunk_dataset(tokenizer, dataset, stride=128, max_length=512, filter_nulls=False):
     for sample in dataset:
-        for chunked_sample in chunk_sample(tokenizer, sample, stride, max_length):
+        for chunked_sample in chunk_sample(tokenizer, sample, stride, max_length, filter_nulls):
             yield chunked_sample
 
 # testing
@@ -55,9 +58,9 @@ if __name__ == '__main__':
     from datasets import load_dataset
     from transformers import T5TokenizerFast
     tokenizer = T5TokenizerFast.from_pretrained('t5-base')
-    mrqa = load_dataset('mrqa', split='train')
+    mrqa = load_dataset('mrqa', split='validation')
     print(f'MRQA has {len(mrqa)} samples')
     print(f'First sample: {mrqa[0]}')
-    chunked_ds = list(chunk_dataset(tokenizer, mrqa, stride=128, max_length=512))
+    chunked_ds = list(chunk_dataset(tokenizer, mrqa, stride=128, max_length=512, filter_nulls=True))
     print(f'Chunked MRQA has {len(chunked_ds)} samples')
     print(f'First sample: {chunked_ds[0]}')

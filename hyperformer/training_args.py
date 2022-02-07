@@ -257,7 +257,9 @@ class DataTrainingArguments:
             "help": "Metric keys to ignore in calculating average for best model"
         },
     )
-
+    filter_nulls: bool = field(
+        default=False, metadata={"help": "Whether to filter out nulls from the dataset. Only valid when using the chunked mrqa dataset"}
+    )
 
 @dataclass
 class AdapterTrainingArguments:
@@ -277,4 +279,7 @@ class AdapterTrainingArguments:
     )
     adapter_norm_input: bool = field(
         default=False, metadata={"help": "Whether to use layer normed input into adapters or not."}
+    )
+    mean_task_embeddings: bool = field(
+        default=False, metadata={"help": "Whether to use average task embedding instead of task-specific or not."}
     )

@@ -1032,11 +1032,14 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
     metrics = [metrics.squad_metrics]
     generation_task = True
 
-    def __init__(self, seed=42, max_examples_per_dataset=75000, tokenizer=T5TokenizerFast.from_pretrained('t5-base')):
+    def __init__(self, seed=42, tokenizer=T5TokenizerFast.from_pretrained('t5-base')):
         self.seed = seed
         self.tokenizer = tokenizer
-        self.max_examples_per_dataset = max_examples_per_dataset
         self.subsets = ['HotpotQA', 'NaturalQuestionsShort', 'NewsQA', 'SearchQA', 'SQuAD', 'TriviaQA-web']
+        self.filter_nulls = False
+
+    def toggle_null_filter(self):
+        self.filter_nulls = not self.filter_nulls
 
     # TODO: this is fairly hideous, i pull out of batched form, add my rows,
     # then put it back in. There is probably a more efficient way to do this...
@@ -1048,32 +1051,22 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
                 k: samples[k][i] for k in samples
             })
         for sample in examples:
-            for chunked_sample in chunk_sample(self.tokenizer, sample, split=='train'):
+            for chunked_sample in chunk_sample(self.tokenizer, sample, filter_nulls=self.filter_nulls and split == 'train'):
                 for key in chunked_sample:
                     result[key].append(chunked_sample[key])
         # little bit of housekeeping
         result['id'] = result['qid']
-        del result['qid']
+        result['task'] = result['subset']
         return result
 
     def get_dataset(
         self, split, n_obs=None, add_prefix=False, split_validation_test=False
     ):
         dataset = self.get_shuffled_sampled_split(split, n_obs)
-        if False: #split == 'train':
-            # for the train split, we first downsample each dataset to balance
-            # out datasets a bit more. We then convert into chunks after this
-            datasets = []
-            for subset in self.subsets:
-                subset_dataset = dataset.filter(lambda x: x['subset'] == subset)
-                num_downsample = min(len(subset_dataset), self.max_examples_per_dataset)
-                datasets.append(subset_dataset.shuffle().select(range(num_downsample)))
-            dataset = concatenate_datasets(datasets)
         dataset = dataset.map(
             functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
             remove_columns=dataset.column_names,
             batched=True, # so we can add rows.
-            load_from_cache_file=False
         )
         return dataset
 

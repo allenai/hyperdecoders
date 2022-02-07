@@ -709,7 +709,7 @@ def check_output_dir(args, expected_items=0):
 class TaskCollator:
     """Implements task-collator to collate the samples in each batch."""
 
-    def __init__(self, tokenizer, data_args, task_weights, tpu_num_cores=None):
+    def __init__(self, tokenizer, data_args, tpu_num_cores=None):
         self.tokenizer = tokenizer
         self.pad_token_id = tokenizer.pad_token_id
         assert (
@@ -717,7 +717,6 @@ class TaskCollator:
         ), f"pad_token_id is not defined for ({self.tokenizer.__class__.__name__}), it must be defined."
         self.data_args = data_args
         self.tpu_num_cores = tpu_num_cores
-        self.task_weights = task_weights
 
     def __call__(self, batch) -> Dict[str, torch.Tensor]:
         # because of padding="longest" this does not work to be done in dataset part.
@@ -733,7 +732,6 @@ class TaskCollator:
             "attention_mask": attention_mask,
             "decoder_input_ids": decoder_input_ids,
             "labels": labels,
-            "task_weights": batch["task_weights"],
             "tasks": batch["tasks"],
         }
         return output_batch
@@ -758,7 +756,6 @@ class TaskCollator:
         )
         tasks = [x["task"] for x in batch]
         batch_encoding["tasks"] = tasks
-        batch_encoding["task_weights"] = [self.task_weights[t] for t in tasks]
         return batch_encoding.data
 
 class MrqaTaskCollator(TaskCollator):
@@ -779,5 +776,4 @@ class MrqaTaskCollator(TaskCollator):
         batch_encoding['labels'] = batch_enc_target['input_ids']
         tasks = [x["task"] for x in batch]
         batch_encoding["tasks"] = tasks
-        batch_encoding["task_weights"] = [self.task_weights[t] for t in tasks]
         return batch_encoding.data
