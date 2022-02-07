@@ -83,6 +83,7 @@ class T5Trainer(Trainer):
         adapter_config=None,
         multi_task_compute_metrics=None,
         compute_gen_probs=False,
+        answer_output_file='predicted_answers.json',
         *args,
         **kwargs,
     ):
@@ -101,6 +102,7 @@ class T5Trainer(Trainer):
         self.dataset_sizes = dataset_sizes
         self.data_args = data_args
         self.compute_gen_probs = compute_gen_probs
+        self.answer_output_file = answer_output_file
         self.vocab_size = (
             self.config.tgt_vocab_size
             if isinstance(self.config, FSMTConfig)
@@ -315,7 +317,7 @@ class T5Trainer(Trainer):
                 # we may have multiple answers for each q due to chunking (TODO: also report probs)
                 for qid, prob, prediction in zip(eval_dataset['id'], gen_probs, output.predictions):
                     answer_results[qid].append((self.tokenizer.decode(prediction, skip_special_tokens=True), prob.tolist()))
-                with open(os.path.join(self.args.output_dir, 'predicted_answers.json'), 'w') as f:
+                with open(os.path.join(self.args.output_dir, self.answer_output_file), 'w') as f:
                     json.dump(answer_results, f, indent=4)
 
             tasks_metric = {eval_task + "_" + k: v for k, v in output.metrics.items()}

@@ -326,6 +326,8 @@ def main():
         trainer.evaluate()
 
     if training_args.do_test:
+        # to avoid overwriting
+        trainer.answer_output_file = 'predicted_answers_test.json'
         trainer.evaluate(test_dataset)
 
 
