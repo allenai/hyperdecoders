@@ -202,7 +202,6 @@ def main():
         unfreeze_decoder(model)
 
     if training_args.print_num_parameters:
-        logger.info(model)
         for name, param in model.named_parameters():
             if param.requires_grad:
                 logger.info("Parameter name %s", name)
@@ -269,6 +268,8 @@ def main():
     compute_gen_probs = False
     if "mrqa" in eval_datasets:
         collator_class = MrqaTaskCollator
+        compute_gen_probs = True
+    elif "mrqa_reg" in eval_datasets:
         compute_gen_probs = True
 
     # Defines the trainer.
