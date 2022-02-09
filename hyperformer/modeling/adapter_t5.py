@@ -15,7 +15,7 @@ from transformers.models.t5.modeling_t5 import (
 )
 
 from modeling.adapter_generators import ParameterGenerator
-from modeling.adapter_layer import AdapterLayer
+from modeling.adapter_layer import AdapterLayer, TaskSpecificAdapterLayer
 
 
 class T5WithAdapterConfig(T5Config):
@@ -31,25 +31,20 @@ class T5WithAdapterConfig(T5Config):
         super().__init__(**kwargs)
         self.adapter_dim = adapter_hidden_param
         self.hypernetwork_bottleneck = hypernetwork_bottleneck
-        # encoder configs
-        assert (
-            encoder_adapter in ["generated", "manual", "none", "task"],
-            "Encoder adapter config must be one of 'generated', 'manual', 'none', 'task'",
-        )
-        assert (
-            decoder_adapter in ["generated", "manual", "none", "task"],
-            "Decoder adapter config must be one of 'generated', 'manual', 'none', 'task'",
-        )
         self.encoder_adapter = encoder_adapter
         self.decoder_adapter = decoder_adapter
         self.tasks = tasks
 
 
 class T5LayerFFWithAdapter(T5LayerFF):
-    def __init__(self, config):
+    def __init__(self, config, is_encoder=False):
         super().__init__(config)
         self.config = config
-        self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
+        if (is_encoder and config.encoder_adapter == 'manual_specific') or (not is_encoder and config.decoder_adapter == 'manual_specific'):
+            self.adapter_layer = TaskSpecificAdapterLayer(config.hidden_size, config.adapter_dim, config.tasks)
+        else:
+            self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
+
 
     def forward(self, hidden_states):
         normed_states = self.layer_norm(hidden_states)
@@ -66,11 +61,11 @@ class T5LayerFFWithAdapter(T5LayerFF):
 
 
 class T5BlockWithAdapter(T5Block):
-    def __init__(self, config, has_relative_attention_bias=False):
+    def __init__(self, config, has_relative_attention_bias=False, is_encoder=False):
         super().__init__(
             config, has_relative_attention_bias=has_relative_attention_bias
         )
-        self.layer[-1] = T5LayerFFWithAdapter(config)
+        self.layer[-1] = T5LayerFFWithAdapter(config, is_encoder=is_encoder)
 
 
 def mean_pooling(hidden_state, attention_mask):
@@ -86,9 +81,12 @@ class T5StackWithAdapter(T5Stack):
             (not self.is_decoder) and self.config.encoder_adapter != "none"
         ):
             blockClass = T5BlockWithAdapter
+            kwargs = {"is_encoder": not self.is_decoder}
+        else:
+            kwargs = {}
         self.block = torch.nn.ModuleList(
             [
-                blockClass(config, has_relative_attention_bias=bool(i == 0))
+                blockClass(config, has_relative_attention_bias=bool(i == 0), **kwargs)
                 for i in range(config.num_layers)
             ]
         )
@@ -152,7 +150,7 @@ class T5StackWithAdapter(T5Stack):
             # at test time, we just average the embeddings.
             if self.config.mean_task_embeddings:
                 task_embed = (
-                    self.adapter_task_embedding.weight.mean(dim=0)
+                    self.adapter_task_embedding.weight[1:].mean(dim=0)
                     .unsqueeze(0)
                     .repeat(input_ids.size(0), 1)
                 )
@@ -164,6 +162,15 @@ class T5StackWithAdapter(T5Stack):
                 )
                 task_embed = self.adapter_task_embedding(indices)
             self.apply_params_to_adapters(input_ids.size(0), self.param_gen(task_embed))
+        elif (self.is_decoder and self.config.decoder_adapter == "manual_specific") or (
+            not self.is_decoder and self.config.encoder_adapter == "manual_specific"
+        ):
+            indices = torch.tensor(
+                    [self.config.tasks.index(task) for task in tasks],
+                    device=input_ids.device,
+                    dtype=torch.long,
+                )
+            self.apply_indices_to_adapters(indices)
         return super().forward(
             input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs
         )
@@ -177,6 +184,10 @@ class T5StackWithAdapter(T5Stack):
     def apply_params_to_adapters(self, batch_size, generated_params):
         for param, block in zip(generated_params, self.block):
             block.layer[-1].adapter_layer.apply_adapter_params(batch_size, *param)
+
+    def apply_indices_to_adapters(self, indices):
+        for block in self.block:
+            block.layer[-1].adapter_layer.set_indices(indices)
 
 
 class T5ForConditionalGenerationWithAdapter(T5ForConditionalGeneration):

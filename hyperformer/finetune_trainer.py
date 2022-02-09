@@ -339,6 +339,7 @@ def main():
 
     if training_args.do_test:
         # to avoid overwriting
+        config.mean_task_embeddings = True
         trainer.answer_output_file = "predicted_answers_test.json"
         trainer.evaluate(test_dataset)
 

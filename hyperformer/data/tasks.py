@@ -1186,9 +1186,9 @@ TASK_MAPPING = OrderedDict(
         ("mrqa_reg", MrqaDataset),
         ("xsum", XSumTaskDataset),
         ("cnn_dailymail", CnnDailyMailDataset),
-        ("wiki_lingua", WikiLinguaDataset),
+        ("wiki_lingua_english_en", WikiLinguaDataset),
         ("anli", AdversarialNLITaskDataset),
-        ("alphanli", AbductiveNLITaskDataset),
+        ("art", AbductiveNLITaskDataset),
     ]
 )
 

@@ -45,3 +45,44 @@ class AdapterLayer(nn.Module):
             x = self.hidden_act(x)
             x = self.adapter_up_manual(x)
         return x  # no residual connection - we let the user of this layer decide that
+
+class TaskSpecificAdapterLayer(nn.Module):
+    def __init__(self, hidden_size, adapter_dim, task_list):
+        super().__init__()
+        self.adapter_dim = adapter_dim
+        self.input_dim = hidden_size
+        self.output_dim = hidden_size
+        self.hidden_act = nn.ReLU()
+        # learnt adapter + inits for it
+        self.adapter_down_manual_weight = nn.Parameter(torch.randn(len(task_list), hidden_size, self.adapter_dim))
+        self.adapter_down_manual_bias = nn.Parameter(torch.randn(len(task_list), 1, self.adapter_dim))
+        self.adapter_up_manual_weight = nn.Parameter(torch.randn(len(task_list), self.adapter_dim, hidden_size))
+        self.adapter_up_manual_bias = nn.Parameter(torch.randn(len(task_list), 1, hidden_size))
+
+        nn.init.xavier_uniform_(self.adapter_down_manual_weight, gain=1e-4)
+        nn.init.constant_(self.adapter_down_manual_bias, 0.0)
+        nn.init.xavier_uniform_(self.adapter_up_manual_weight, gain=1e-4)
+        nn.init.constant_(self.adapter_up_manual_bias, 0.0)
+        # hacky method for setting task specific adapters
+        self.adapter_down_weight_holder = None
+        self.adapter_down_bias_holder = None
+        self.adapter_up_weight_holder = None
+        self.adapter_up_bias_holder = None
+
+    def clear_adapter(self):
+        self.adapter_down_weight_holder = None
+        self.adapter_down_bias_holder = None
+        self.adapter_up_weight_holder = None
+        self.adapter_up_bias_holder = None
+
+    def set_indices(self, indices):
+        self.adapter_down_weight_holder = self.adapter_down_manual_weight[indices]
+        self.adapter_down_bias_holder = self.adapter_down_manual_bias[indices]
+        self.adapter_up_weight_holder = self.adapter_up_manual_weight[indices]
+        self.adapter_up_bias_holder = self.adapter_up_manual_bias[indices]
+
+    def forward(self, x):
+        x = torch.bmm(x, self.adapter_down_weight_holder) + self.adapter_down_bias_holder
+        x = self.hidden_act(x)
+        x = torch.bmm(x, self.adapter_up_weight_holder) + self.adapter_up_bias_holder
+        return x
