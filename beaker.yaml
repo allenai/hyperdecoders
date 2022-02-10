@@ -1,0 +1,14 @@
+version: v2-alpha
+description: hyperadapters - summarise nli task base
+tasks:
+  - name: hyper-adapter-summarise-nli-task
+    image:
+      beaker: hamishivi/hyper-adapter-baselines-2
+    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/summarise_nli_task.json']
+    result:
+      path: /hyperadapter/summarise_nli_task
+    resources:
+      gpuCount: 1
+    context:
+      cluster: ai2/allennlp-cirrascale
+      priority: normal
