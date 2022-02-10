@@ -4,7 +4,7 @@ import math
 
 
 class AdapterLayer(nn.Module):
-    def __init__(self, hidden_size, adapter_dim):
+    def __init__(self, hidden_size, adapter_dim, is_encoder=False):
         super().__init__()
         self.adapter_dim = adapter_dim
         self.input_dim = hidden_size

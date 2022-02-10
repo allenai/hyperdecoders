@@ -43,7 +43,7 @@ class T5LayerFFWithAdapter(T5LayerFF):
         if (is_encoder and config.encoder_adapter == 'manual_specific') or (not is_encoder and config.decoder_adapter == 'manual_specific'):
             self.adapter_layer = TaskSpecificAdapterLayer(config.hidden_size, config.adapter_dim, config.tasks)
         else:
-            self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim)
+            self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim, is_encoder=is_encoder)
 
 
     def forward(self, hidden_states):

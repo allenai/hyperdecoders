@@ -178,6 +178,9 @@ class ModelArguments:
     unfreeze_decoder: bool = field(
         default=False, metadata={"help": "Whether to unfreeze the decoder."}
     )
+    unfreeze_layer_norms: bool = field(
+        default=False, metadata={"help": "Whether to unfreeze the layer norms."}
+    )
 
 
 @dataclass

@@ -39,6 +39,7 @@ from utils import (
     unfreeze_adapter_params_decoder,
     unfreeze_encoder,
     unfreeze_decoder,
+    unfreeze_layer_norms,
 )
 
 logger = logging.getLogger(__name__)
@@ -200,6 +201,8 @@ def main():
         unfreeze_encoder(model)
     if model_args.unfreeze_decoder:
         unfreeze_decoder(model)
+    if model_args.unfreeze_layer_norms:
+        unfreeze_layer_norms(model)
 
     if training_args.print_num_parameters:
         for name, param in model.named_parameters():

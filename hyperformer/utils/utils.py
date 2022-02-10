@@ -123,3 +123,9 @@ def unfreeze_decoder(model):
     for name, param in model.named_parameters():
         if "decoder" in name:
             param.requires_grad = True
+
+
+def unfreeze_layer_norms(model):
+    for name, param in model.named_parameters():
+        if "layer_norm" in name:
+            param.requires_grad = True

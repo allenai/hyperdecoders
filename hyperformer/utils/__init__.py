@@ -19,6 +19,7 @@ from .utils import (
     unfreeze_adapter_params_decoder,
     unfreeze_encoder,
     unfreeze_decoder,
+    unfreeze_layer_norms,
     handle_metrics,
     create_dir,
     get_last_checkpoint_path,
