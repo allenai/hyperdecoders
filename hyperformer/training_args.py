@@ -278,8 +278,11 @@ class AdapterTrainingArguments:
     decoder_adapter: Optional[str] = field(
         default="task", metadata={"help": "The decoder adapter to use."}
     )
-    adapter_dim: Optional[int] = field(
-        default=64, metadata={"help": "size of adapters themselves."}
+    encoder_adapter_dim: Optional[int] = field(
+        default=64, metadata={"help": "size of adapters in encoder."}
+    )
+    decoder_adapter_dim: Optional[int] = field(
+        default=64, metadata={"help": "size of adapters in decoder."}
     )
     hypernetwork_bottleneck: Optional[int] = field(
         default=128, metadata={"help": "size of hypernetwork bottleneck dim"}

@@ -17,20 +17,20 @@ def hyperfanin_init_bias(linear_layer, hypernet_in):
 
 
 class SimpleGenerator(nn.Module):
-    def __init__(self, config, input_dim, hidden_size):
+    def __init__(self, config, input_dim, hidden_size, is_encoder=False):
         super().__init__()
-
+        adapter_dim = config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
         self.input_dim = input_dim
         self.hidden_dim = config.hypernetwork_bottleneck
         self.linear1 = nn.Linear(self.input_dim, self.hidden_dim)
         self.activation_fn = nn.ReLU()
         # output weights
-        self.weight_up = nn.Linear(self.hidden_dim, hidden_size * config.adapter_dim)
-        self.weight_down = nn.Linear(self.hidden_dim, hidden_size * config.adapter_dim)
+        self.weight_up = nn.Linear(self.hidden_dim, hidden_size * adapter_dim)
+        self.weight_down = nn.Linear(self.hidden_dim, hidden_size * adapter_dim)
         self.bias_up = nn.Linear(self.hidden_dim, hidden_size)
-        self.bias_down = nn.Linear(self.hidden_dim, config.adapter_dim)
+        self.bias_down = nn.Linear(self.hidden_dim, adapter_dim)
         # init weights
-        hyperfanin_init_weight(self.weight_up, self.hidden_dim, config.adapter_dim)
+        hyperfanin_init_weight(self.weight_up, self.hidden_dim, adapter_dim)
         hyperfanin_init_weight(self.weight_down, self.hidden_dim, hidden_size)
         hyperfanin_init_bias(self.bias_up, self.hidden_dim)
         hyperfanin_init_bias(self.bias_down, self.hidden_dim)
@@ -47,12 +47,12 @@ class SimpleGenerator(nn.Module):
 
 
 class ParameterGenerator(nn.Module):
-    def __init__(self, config, hidden_size):
+    def __init__(self, config, hidden_size, is_encoder=False):
         super().__init__()
         self.config = config
         self.location_embed = nn.Embedding(3, 10)  # ffn, attn, cross attn
         self.layer_embed = nn.Embedding(config.num_hidden_layers, 10)
-        self.decoder = SimpleGenerator(config, config.hidden_size + 10, hidden_size)
+        self.decoder = SimpleGenerator(config, config.hidden_size + 10, hidden_size, is_encoder=is_encoder)
 
     def forward(self, hidden_inputs):
         layers = []

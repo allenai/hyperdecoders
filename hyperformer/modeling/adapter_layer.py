@@ -4,11 +4,12 @@ import math
 
 
 class AdapterLayer(nn.Module):
-    def __init__(self, hidden_size, adapter_dim, is_encoder=False):
+    def __init__(self, config, is_encoder=False):
         super().__init__()
-        self.adapter_dim = adapter_dim
-        self.input_dim = hidden_size
-        self.output_dim = hidden_size
+        self.adapter_dim = config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        hidden_size = config.hidden_size
+        self.input_dim = config.hidden_size
+        self.output_dim = config.hidden_size
         # insertion weights
         self.adapter_down_weight = None
         self.adapter_down_bias = None
@@ -47,9 +48,11 @@ class AdapterLayer(nn.Module):
         return x  # no residual connection - we let the user of this layer decide that
 
 class TaskSpecificAdapterLayer(nn.Module):
-    def __init__(self, hidden_size, adapter_dim, task_list):
+    def __init__(self, config, task_list, is_encoder=False):
         super().__init__()
-        self.adapter_dim = adapter_dim
+        self.adapter_dim = config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        hidden_size = config.hidden_size
+        task_list = config.tasks
         self.input_dim = hidden_size
         self.output_dim = hidden_size
         self.hidden_act = nn.ReLU()

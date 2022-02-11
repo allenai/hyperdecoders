@@ -21,7 +21,8 @@ from modeling.adapter_layer import AdapterLayer, TaskSpecificAdapterLayer
 class T5WithAdapterConfig(T5Config):
     def __init__(
         self,
-        adapter_hidden_param=64,
+        encoder_adapter_dim=64,
+        decoder_adapter_dim=64,
         hypernetwork_bottleneck=128,
         encoder_adapter="task",
         decoder_adapter="task",
@@ -29,7 +30,8 @@ class T5WithAdapterConfig(T5Config):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.adapter_dim = adapter_hidden_param
+        self.encoder_adapter_dim = encoder_adapter_dim
+        self.decoder_adapter_dim = decoder_adapter_dim
         self.hypernetwork_bottleneck = hypernetwork_bottleneck
         self.encoder_adapter = encoder_adapter
         self.decoder_adapter = decoder_adapter
@@ -41,9 +43,9 @@ class T5LayerFFWithAdapter(T5LayerFF):
         super().__init__(config)
         self.config = config
         if (is_encoder and config.encoder_adapter == 'manual_specific') or (not is_encoder and config.decoder_adapter == 'manual_specific'):
-            self.adapter_layer = TaskSpecificAdapterLayer(config.hidden_size, config.adapter_dim, config.tasks)
+            self.adapter_layer = TaskSpecificAdapterLayer(config, is_encoder=is_encoder)
         else:
-            self.adapter_layer = AdapterLayer(config.hidden_size, config.adapter_dim, is_encoder=is_encoder)
+            self.adapter_layer = AdapterLayer(config, is_encoder=is_encoder)
 
 
     def forward(self, hidden_states):
@@ -93,7 +95,7 @@ class T5StackWithAdapter(T5Stack):
         if (self.is_decoder and self.config.decoder_adapter == "generated") or (
             (not self.is_decoder) and self.config.encoder_adapter == "generated"
         ):
-            self.param_gen = ParameterGenerator(config, config.hidden_size)
+            self.param_gen = ParameterGenerator(config, config.hidden_size, is_encoder=not self.is_decoder)
             self.mlp = nn.Sequential(
                 nn.Linear(config.d_model, config.d_model),
                 nn.ReLU(),
@@ -103,7 +105,7 @@ class T5StackWithAdapter(T5Stack):
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             (not self.is_decoder) and self.config.encoder_adapter == "task"
         ):
-            self.param_gen = ParameterGenerator(config, config.hidden_size)
+            self.param_gen = ParameterGenerator(config, config.hidden_size, is_encoder=not self.is_decoder)
             self.adapter_task_embedding = nn.Embedding(
                 len(self.config.tasks), self.config.d_model
             )
