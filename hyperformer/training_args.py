@@ -128,6 +128,9 @@ class Seq2SeqTrainingArguments(TrainingArguments):
     compute_time: Optional[bool] = field(
         default=False, metadata={"help": "If specified, measures the time needed."}
     )
+    report_to: Optional[List[str]] = field(
+        default="none", metadata={"help": "The list of integrations to report the results and logs to."}
+    )
 
 
 @dataclass
