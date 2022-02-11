@@ -19,7 +19,9 @@ def hyperfanin_init_bias(linear_layer, hypernet_in):
 class SimpleGenerator(nn.Module):
     def __init__(self, config, input_dim, hidden_size, is_encoder=False):
         super().__init__()
-        adapter_dim = config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        adapter_dim = (
+            config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        )
         self.input_dim = input_dim
         self.hidden_dim = config.hypernetwork_bottleneck
         self.linear1 = nn.Linear(self.input_dim, self.hidden_dim)
@@ -52,7 +54,9 @@ class ParameterGenerator(nn.Module):
         self.config = config
         self.location_embed = nn.Embedding(3, 10)  # ffn, attn, cross attn
         self.layer_embed = nn.Embedding(config.num_hidden_layers, 10)
-        self.decoder = SimpleGenerator(config, config.hidden_size + 10, hidden_size, is_encoder=is_encoder)
+        self.decoder = SimpleGenerator(
+            config, config.hidden_size + 10, hidden_size, is_encoder=is_encoder
+        )
 
     def forward(self, hidden_inputs):
         layers = []

@@ -1,12 +1,15 @@
 version: v2-alpha
-description: hyperadapters - summarise nli task base
+description: hyperadapters - larger encoder smaller decoder
 tasks:
-  - name: hyper-adapter-summarise-nli-task
+  - name: hyper-adapter-larger-encode-small-decode
     image:
-      beaker: hamishivi/hyper-adapter-baselines-2
-    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/summarise_nli_task.json']
+      beaker: hamishivi/hyper-adapter-enc-dec
+    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/mrqa_experiments/large_adapter_small_hypernet.json']
+    envVars:
+      - name: WANDB_DISABLED
+        value: true
     result:
-      path: /hyperadapter/summarise_nli_task
+      path: /hyperadapter/output
     resources:
       gpuCount: 1
     context:

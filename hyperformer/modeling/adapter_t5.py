@@ -42,11 +42,12 @@ class T5LayerFFWithAdapter(T5LayerFF):
     def __init__(self, config, is_encoder=False):
         super().__init__(config)
         self.config = config
-        if (is_encoder and config.encoder_adapter == 'manual_specific') or (not is_encoder and config.decoder_adapter == 'manual_specific'):
+        if (is_encoder and config.encoder_adapter == "manual_specific") or (
+            not is_encoder and config.decoder_adapter == "manual_specific"
+        ):
             self.adapter_layer = TaskSpecificAdapterLayer(config, is_encoder=is_encoder)
         else:
             self.adapter_layer = AdapterLayer(config, is_encoder=is_encoder)
-
 
     def forward(self, hidden_states):
         normed_states = self.layer_norm(hidden_states)
@@ -95,7 +96,9 @@ class T5StackWithAdapter(T5Stack):
         if (self.is_decoder and self.config.decoder_adapter == "generated") or (
             (not self.is_decoder) and self.config.encoder_adapter == "generated"
         ):
-            self.param_gen = ParameterGenerator(config, config.hidden_size, is_encoder=not self.is_decoder)
+            self.param_gen = ParameterGenerator(
+                config, config.hidden_size, is_encoder=not self.is_decoder
+            )
             self.mlp = nn.Sequential(
                 nn.Linear(config.d_model, config.d_model),
                 nn.ReLU(),
@@ -105,7 +108,9 @@ class T5StackWithAdapter(T5Stack):
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             (not self.is_decoder) and self.config.encoder_adapter == "task"
         ):
-            self.param_gen = ParameterGenerator(config, config.hidden_size, is_encoder=not self.is_decoder)
+            self.param_gen = ParameterGenerator(
+                config, config.hidden_size, is_encoder=not self.is_decoder
+            )
             self.adapter_task_embedding = nn.Embedding(
                 len(self.config.tasks), self.config.d_model
             )
@@ -152,7 +157,8 @@ class T5StackWithAdapter(T5Stack):
             # at test time, we just average the embeddings.
             if self.config.mean_task_embeddings:
                 task_embed = (
-                    self.adapter_task_embedding.weight[1:].mean(dim=0)
+                    self.adapter_task_embedding.weight[1:]
+                    .mean(dim=0)
                     .unsqueeze(0)
                     .repeat(input_ids.size(0), 1)
                 )
@@ -168,10 +174,10 @@ class T5StackWithAdapter(T5Stack):
             not self.is_decoder and self.config.encoder_adapter == "manual_specific"
         ):
             indices = torch.tensor(
-                    [self.config.tasks.index(task) for task in tasks],
-                    device=input_ids.device,
-                    dtype=torch.long,
-                )
+                [self.config.tasks.index(task) for task in tasks],
+                device=input_ids.device,
+                dtype=torch.long,
+            )
             self.apply_indices_to_adapters(indices)
         return super().forward(
             input_ids=input_ids, encoder_hidden_states=encoder_hidden_states, **kwargs

@@ -6,7 +6,9 @@ import math
 class AdapterLayer(nn.Module):
     def __init__(self, config, is_encoder=False):
         super().__init__()
-        self.adapter_dim = config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        self.adapter_dim = (
+            config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        )
         hidden_size = config.hidden_size
         self.input_dim = config.hidden_size
         self.output_dim = config.hidden_size
@@ -47,20 +49,31 @@ class AdapterLayer(nn.Module):
             x = self.adapter_up_manual(x)
         return x  # no residual connection - we let the user of this layer decide that
 
+
 class TaskSpecificAdapterLayer(nn.Module):
     def __init__(self, config, task_list, is_encoder=False):
         super().__init__()
-        self.adapter_dim = config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        self.adapter_dim = (
+            config.encoder_adapter_dim if is_encoder else config.decoder_adapter_dim
+        )
         hidden_size = config.hidden_size
         task_list = config.tasks
         self.input_dim = hidden_size
         self.output_dim = hidden_size
         self.hidden_act = nn.ReLU()
         # learnt adapter + inits for it
-        self.adapter_down_manual_weight = nn.Parameter(torch.randn(len(task_list), hidden_size, self.adapter_dim))
-        self.adapter_down_manual_bias = nn.Parameter(torch.randn(len(task_list), 1, self.adapter_dim))
-        self.adapter_up_manual_weight = nn.Parameter(torch.randn(len(task_list), self.adapter_dim, hidden_size))
-        self.adapter_up_manual_bias = nn.Parameter(torch.randn(len(task_list), 1, hidden_size))
+        self.adapter_down_manual_weight = nn.Parameter(
+            torch.randn(len(task_list), hidden_size, self.adapter_dim)
+        )
+        self.adapter_down_manual_bias = nn.Parameter(
+            torch.randn(len(task_list), 1, self.adapter_dim)
+        )
+        self.adapter_up_manual_weight = nn.Parameter(
+            torch.randn(len(task_list), self.adapter_dim, hidden_size)
+        )
+        self.adapter_up_manual_bias = nn.Parameter(
+            torch.randn(len(task_list), 1, hidden_size)
+        )
 
         nn.init.xavier_uniform_(self.adapter_down_manual_weight, gain=1e-4)
         nn.init.constant_(self.adapter_down_manual_bias, 0.0)
@@ -85,7 +98,10 @@ class TaskSpecificAdapterLayer(nn.Module):
         self.adapter_up_bias_holder = self.adapter_up_manual_bias[indices]
 
     def forward(self, x):
-        x = torch.bmm(x, self.adapter_down_weight_holder) + self.adapter_down_bias_holder
+        x = (
+            torch.bmm(x, self.adapter_down_weight_holder)
+            + self.adapter_down_bias_holder
+        )
         x = self.hidden_act(x)
         x = torch.bmm(x, self.adapter_up_weight_holder) + self.adapter_up_bias_holder
         return x
