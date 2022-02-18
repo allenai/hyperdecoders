@@ -279,10 +279,10 @@ class AdapterTrainingArguments:
     """Defines the adapters parameters."""
 
     encoder_adapter: Optional[str] = field(
-        default="task", metadata={"help": "The encoder adapter to use."}
+        default="manual", metadata={"help": "The encoder adapter to use."}
     )
     decoder_adapter: Optional[str] = field(
-        default="task", metadata={"help": "The decoder adapter to use."}
+        default="generated", metadata={"help": "The decoder adapter to use."}
     )
     encoder_adapter_dim: Optional[int] = field(
         default=64, metadata={"help": "size of adapters in encoder."}
@@ -301,5 +301,11 @@ class AdapterTrainingArguments:
         default=False,
         metadata={
             "help": "Whether to use average task embedding instead of task-specific or not."
+        },
+    )
+    process_encoder_output: bool = field(
+        default=True,
+        metadata={
+            "help": "Whether to pass the encoder output through a MLP before mean-pooling or not."
         },
     )

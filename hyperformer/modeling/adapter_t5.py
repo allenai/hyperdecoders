@@ -99,12 +99,16 @@ class T5StackWithAdapter(T5Stack):
             self.param_gen = ParameterGenerator(
                 config, config.hidden_size, is_encoder=not self.is_decoder
             )
-            self.mlp = nn.Sequential(
-                nn.Linear(config.d_model, config.d_model),
-                nn.ReLU(),
-                nn.Linear(config.d_model, config.d_model),
-                nn.ReLU(),
-            )
+            if self.config.process_encoder_output:
+                self.mlp = nn.Sequential(
+                    nn.Linear(config.d_model, config.d_model),
+                    nn.ReLU(),
+                    nn.Linear(config.d_model, config.d_model),
+                    nn.ReLU(),
+                )
+            else:
+                # no-op to make the forward function less of an if-maze
+                self.mlp = lambda x: x
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             (not self.is_decoder) and self.config.encoder_adapter == "task"
         ):
