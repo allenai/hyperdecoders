@@ -1,6 +1,6 @@
 {
-    "model_name_or_path": "google/t5-large-lm-adapt",
-    "tokenizer_name": "google/t5-large-lm-adapt",
+    "model_name_or_path": "t5-base",
+    "tokenizer_name": "t5-base",
     "learning_rate": 0.0003,
     "output_dir": "/hyperadapter/output",
     "max_source_length": 128,
@@ -38,6 +38,7 @@
     "unfreeze_decoder_adapters": true,
     "unfreeze_encoder": false,
     "unfreeze_decoder": false,
+    "unfreeze_layer_norms": false,
     "adapter_norm_input": false,
     "encoder_adapter_dim": 64,
     "decoder_adapter_dim": 64,

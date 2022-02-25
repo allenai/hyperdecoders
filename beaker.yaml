@@ -1,10 +1,10 @@
 version: v2-alpha
-description: hyperadapters - larger encoder smaller decoder
+description: hyperadapters - t5-base-unbalanced
 tasks:
-  - name: hyper-adapter-larger-encode-small-decode
+  - name: hyper-adapter-t5-base-unbalanced
     image:
-      beaker: hamishivi/hyper-adapter-enc-dec
-    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/mrqa_experiments/large_adapter_small_hypernet.json']
+      beaker: hamishivi/hyper-adapter
+    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/glue_ablations/glue_manual_generated_unbalanced.json']
     envVars:
       - name: WANDB_DISABLED
         value: true

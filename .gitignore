@@ -3,3 +3,5 @@ outputs/
 .lock
 .python-version
 venv/
+output/
+wandb/

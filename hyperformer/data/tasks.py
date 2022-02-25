@@ -1072,6 +1072,20 @@ class ChunkedMrqaDataset(AbstractTaskDataset):
         self, split, n_obs=None, add_prefix=False, split_validation_test=False
     ):
         dataset = self.get_shuffled_sampled_split(split, n_obs)
+        # downsample similar to MADE & MRQA baselines.
+        if split == 'train' or split == 'validation':
+            all_datasubsets = []
+            # we downsample to 75k train, 1k val examples. No test downsample.
+            downsample_size = 75000 if split == "train" else 1000
+            for subset in self.subsets:
+                datasubset = dataset.filter(lambda x: x["subset"] == subset)
+                if len(datasubset) > downsample_size:
+                    datasubset = datasubset.shuffle().select(range(downsample_size))
+                all_datasubsets.append(datasubset)
+            # we want to sample from each dataset uniformly
+            probabilities = [1 / len(all_datasubsets) for _ in all_datasubsets]
+            dataset = datasets.interleave_datasets(all_datasubsets, probabilities=probabilities)
+        # apply chunking and prepro
         dataset = dataset.map(
             functools.partial(self.preprocessor, split=split, add_prefix=add_prefix),
             remove_columns=dataset.column_names,
