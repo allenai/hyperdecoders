@@ -1,10 +1,10 @@
 version: v2-alpha
-description: hyperadapters - t5-base-unbalanced
+description: hyperadapters - task task glue large lm adapt
 tasks:
-  - name: hyper-adapter-t5-base-unbalanced
+  - name: hyper-adapter-task-task-glue-large-lm-adapt
     image:
       beaker: hamishivi/hyper-adapter
-    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/glue_ablations/glue_manual_generated_unbalanced.json']
+    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/glue_ablations/glue_task_task.json']
     envVars:
       - name: WANDB_DISABLED
         value: true
