@@ -144,7 +144,7 @@ def main():
     config.update(dataclasses.asdict(adapter_args))
     all_tasks = list(set(data_args.tasks + data_args.eval_tasks))
     # mrqa is a single 'task' with many sub-tasks
-    if "mrqa" or "mrqa_reg" in data_args.tasks + data_args.eval_tasks:
+    if "mrqa" in data_args.tasks + data_args.eval_tasks or "mrqa_reg" in data_args.tasks + data_args.eval_tasks:
         all_tasks += [
             "HotpotQA",
             "NaturalQuestionsShort",
@@ -342,7 +342,6 @@ def main():
 
     if training_args.do_test:
         # to avoid overwriting
-        config.mean_task_embeddings = True
         trainer.answer_output_file = "predicted_answers_test.json"
         trainer.evaluate(test_dataset)
 

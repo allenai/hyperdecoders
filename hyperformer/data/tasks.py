@@ -74,6 +74,7 @@ class AbstractTaskDataset(abc.ABC):
         "winogrande",
         "hellaswag",
         "sst2",
+        "art"
     ]
     generation_task: bool = False  # for loss scaling
 
@@ -713,7 +714,7 @@ class AdversarialNLITaskDataset(AbstractTaskDataset):
     split_to_data_split = {
         "train": "train",
         "validation": "dev",
-        "test": "dev",
+        "test": "test",
     }
     metrics = [metrics.accuracy]
     suffixes = ["_r1", "_r2", "_r3"]
@@ -1101,7 +1102,7 @@ class XSumTaskDataset(AbstractTaskDataset):
     split_to_data_split = {
         "train": "train",
         "validation": "validation",
-        "test": "validation",
+        "test": "test",
     }
     generation_task = True
 
@@ -1120,13 +1121,13 @@ class CnnDailyMailDataset(AbstractTaskDataset):
     split_to_data_split = {
         "train": "train",
         "validation": "validation",
-        "test": "validation",
+        "test": "test",
     }
     generation_task = True
 
     def load_dataset(self, split: int):
         return datasets.load_dataset(
-            self.name, "3.0.0", split=split, script_version="master"
+            'ccdv/cnn_dailymail', '3.0.0', split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -1144,7 +1145,7 @@ class WikiLinguaDataset(AbstractTaskDataset):
     split_to_data_split = {
         "train": "train",
         "validation": "validation",
-        "test": "validation",
+        "test": "test",
     }
     generation_task = True
 
@@ -1213,8 +1214,8 @@ class AutoTask:
         if task_name in TASK_MAPPING:
             return TASK_MAPPING[task_name](seed)
         raise ValueError(
-            "Unrecognized task {} for AutoTask Model: {}.\n"
+            "Unrecognized task {} for AutoTask Model.\n"
             "Task name should be one of {}.".format(
-                ", ".join(c for c in TASK_MAPPING.keys())
+                task_name, ", ".join(c for c in TASK_MAPPING.keys())
             )
         )

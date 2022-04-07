@@ -52,7 +52,6 @@ class ParameterGenerator(nn.Module):
     def __init__(self, config, hidden_size, is_encoder=False):
         super().__init__()
         self.config = config
-        self.location_embed = nn.Embedding(3, 10)  # ffn, attn, cross attn
         self.layer_embed = nn.Embedding(config.num_hidden_layers, 10)
         self.decoder = SimpleGenerator(
             config, config.hidden_size + 10, hidden_size, is_encoder=is_encoder
@@ -68,10 +67,6 @@ class ParameterGenerator(nn.Module):
             device=hidden_inputs.device,
         )
         layers_idxs = layers_idxs.repeat(hidden_inputs.size(0), 1)
-        location_idxs = torch.arange(
-            0, 3, dtype=torch.long, device=hidden_inputs.device
-        )
-        location_idxs = location_idxs.repeat(hidden_inputs.size(0), 1)
         for i in range(self.config.num_hidden_layers):
             layer_embed = self.layer_embed(layers_idxs[:, i])
             hidden_input = torch.cat([hidden_inputs, layer_embed], dim=1)

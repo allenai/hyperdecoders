@@ -333,7 +333,7 @@ class T5Trainer(Trainer):
                         )
                     )
                 with open(
-                    os.path.join(self.args.output_dir, self.answer_output_file), "w"
+                    os.path.join(self.args.output_dir, str(self.state.global_step) + self.answer_output_file ), "w"
                 ) as f:
                     json.dump(answer_results, f, indent=4)
 

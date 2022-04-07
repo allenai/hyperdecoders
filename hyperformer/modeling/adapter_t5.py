@@ -104,7 +104,6 @@ class T5StackWithAdapter(T5Stack):
                     nn.Linear(config.d_model, config.d_model),
                     nn.ReLU(),
                     nn.Linear(config.d_model, config.d_model),
-                    nn.ReLU(),
                 )
             else:
                 # no-op to make the forward function less of an if-maze
@@ -158,7 +157,7 @@ class T5StackWithAdapter(T5Stack):
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             not self.is_decoder and self.config.encoder_adapter == "task"
         ):
-            # at test time, we just average the embeddings.
+            # at test time, we can just average the embeddings for new tasks
             if self.config.mean_task_embeddings:
                 task_embed = (
                     self.adapter_task_embedding.weight[1:]

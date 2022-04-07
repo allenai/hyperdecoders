@@ -763,6 +763,11 @@ class MrqaTaskCollator(TaskCollator):
     """Collator for padding when input_ids is given (preprocessed mrqa)."""
 
     def _encode(self, batch) -> Dict[str, torch.Tensor]:
+        # if we have non-prepro stuff, convert it
+        for x in batch:
+            if 'input_ids' not in x or x['input_ids'] is None:
+                x['input_ids'] = self.tokenizer(x['src_texts'], add_special_tokens=True)['input_ids']
+                x['answer'] = x['tgt_texts']
         batch_encoding = self.tokenizer.pad(
             [{"input_ids": x["input_ids"]} for x in batch],
             padding="longest",
