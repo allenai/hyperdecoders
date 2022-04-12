@@ -1,10 +1,10 @@
 version: v2-alpha
-description: hyperadapters - task task glue large lm adapt
+description: hyperadapters - summarise-nli-task
 tasks:
-  - name: hyper-adapter-task-task-glue-large-lm-adapt
+  - name: hyper-adapter-summarise-nli-task
     image:
-      beaker: hamishivi/hyper-adapter
-    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/glue_ablations/glue_task_task.json']
+      beaker: hamishivi/hyper-former-glue
+    command: ['python', 'hyperformer/finetune_trainer.py', 'hyperformer/configs/xsum_nli/summarise_nli_task.json']
     envVars:
       - name: WANDB_DISABLED
         value: true

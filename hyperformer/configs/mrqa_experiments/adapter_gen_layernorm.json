@@ -43,7 +43,6 @@
     "unfreeze_layer_norms": true,
     "adafactor": true,
     "lr_scheduler": "constant",
-    "data_cache": "/net/nfs.cirrascale/allennlp/hamishi/data_cache",
     "tasks": ["mrqa"],
     "eval_tasks": ["mrqa"]
 }

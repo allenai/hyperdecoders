@@ -157,21 +157,18 @@ class T5StackWithAdapter(T5Stack):
         elif (self.is_decoder and self.config.decoder_adapter == "task") or (
             not self.is_decoder and self.config.encoder_adapter == "task"
         ):
-            # at test time, we can just average the embeddings for new tasks
-            if self.config.mean_task_embeddings:
-                task_embed = (
-                    self.adapter_task_embedding.weight[1:]
-                    .mean(dim=0)
-                    .unsqueeze(0)
-                    .repeat(input_ids.size(0), 1)
-                )
-            else:
-                indices = torch.tensor(
-                    [self.config.tasks.index(task) for task in tasks],
-                    device=input_ids.device,
-                    dtype=torch.long,
-                )
-                task_embed = self.adapter_task_embedding(indices)
+            # at test time, we only test one task at a time.
+            if not self.training:
+                # simple sanity check
+                if len(tasks) > 0:
+                    assert(tasks[0] == tasks[1] and tasks[1] == tasks[-1])
+                tasks = [tasks[0] for _ in range(input_ids.size(0))]
+            indices = torch.tensor(
+                [self.config.tasks.index(task) for task in tasks],
+                device=input_ids.device,
+                dtype=torch.long,
+            )
+            task_embed = self.adapter_task_embedding(indices)
             self.apply_params_to_adapters(input_ids.size(0), self.param_gen(task_embed))
         elif (self.is_decoder and self.config.decoder_adapter == "manual_specific") or (
             not self.is_decoder and self.config.encoder_adapter == "manual_specific"

@@ -1,5 +1,5 @@
 {
-    "model_name_or_path": "/hyperadapter/output/checkpoint-110000",
+    "model_name_or_path": "google/t5-base-lm-adapt",
     "tokenizer_name": "google/t5-base-lm-adapt",
     "learning_rate": 0.0003,
     "output_dir": "/hyperadapter/output",
@@ -13,7 +13,7 @@
     "label_smoothing": 0.1,
     "per_device_train_batch_size": 32,
     "per_device_eval_batch_size": 16,
-    "gradient_accumulation_steps": 4,
+    "gradient_accumulation_steps": 2,
     "logging_first_step": true,
     "logging_steps": 200,
     "save_total_limit": 1,
@@ -40,8 +40,8 @@
     "unfreeze_decoder_adapters": true,
     "unfreeze_encoder": false,
     "unfreeze_decoder": false,
-    "encoder_adapter_dim": 412,
-    "decoder_adapter_dim": 412,
+    "encoder_adapter_dim": 370,
+    "decoder_adapter_dim": 370,
     "hypernetwork_bottleneck": 128,
     "loss_scaling": false,
     

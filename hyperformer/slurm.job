@@ -1,4 +1,0 @@
-#!/bin/bash
-#SBATCH --output=/net/nfs2.allennlp/hamishi/xsum-adapter-srun-%j.out
-source /home/hamishi/hyperformer-alt/hyperformer/venv/bin/activate
-python finetune_trainer.py configs/xsum_only.json

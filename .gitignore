@@ -5,3 +5,5 @@ outputs/
 venv/
 output/
 wandb/
+in-domain/
+out-domain/

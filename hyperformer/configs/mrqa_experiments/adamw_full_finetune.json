@@ -41,7 +41,6 @@
     "hypernetwork_bottleneck": 1,
     "loss_scaling": false,
     "adafactor": false,
-    "data_cache": "/net/nfs.cirrascale/allennlp/hamishi/data_cache",
     "tasks": ["mrqa"],
     "eval_tasks": ["mrqa"]
 }

@@ -44,7 +44,6 @@
     "loss_scaling": false,
     "adafactor": false,
     "report_to": "none",
-    "data_cache": "/net/nfs.cirrascale/allennlp/hamishi/data_cache",
     "tasks": ["mrqa"],
     "eval_tasks": ["mrqa"]
 }
