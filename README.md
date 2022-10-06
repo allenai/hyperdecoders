@@ -8,9 +8,11 @@ Code for the hyperdecoders paper. This is built off the [hyperformer codebase](h
 
 ## Installation
 
-Install pytorch (1.10.1 recommended). Install required packages, preferably in a virtualenv: `pip install -r requirements.txt`.
+Install pytorch (1.10 recommended). Install required packages, preferably in a virtualenv: `pip install -r requirements.txt`.
 
 Navigate into the `hyperformer` directory, and then you can run any configuration with `python finetune_trainer.py configs/<config>`.
+
+For example, for GLUE, the Hyperdecoder model can be run with `python finetune_trainer.py configs/glue_ablations/glue_manual_generated.json`.
 
 ## Evaluation
 

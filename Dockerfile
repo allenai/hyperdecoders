@@ -5,6 +5,10 @@ ENV LANG=C.UTF-8
 
 WORKDIR /hyperadapter/
 
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y git
+
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
