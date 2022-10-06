@@ -125,7 +125,7 @@ class AbstractTaskDataset(abc.ABC):
         return dataset.select(indices)
 
     def load_dataset(self, split: int):
-        return datasets.load_dataset(self.name, split=split, script_version="master")
+        return datasets.load_dataset(self.name, split=split)
 
     def get_train_split_indices(self, split):
         generator = torch.Generator()
@@ -254,7 +254,7 @@ class PawsTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split: int):
         return datasets.load_dataset(
-            self.name, "labeled_final", split=split, script_version="master"
+            self.name, "labeled_final", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -281,7 +281,7 @@ class SuperGLUEBoolQTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "super_glue", "boolq", split=split, script_version="master"
+            "super_glue", "boolq", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -303,7 +303,7 @@ class SuperGLUERTETaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "super_glue", "rte", split=split, script_version="master"
+            "super_glue", "rte", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -330,7 +330,7 @@ class SuperGLUECBTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "super_glue", "cb", split=split, script_version="master"
+            "super_glue", "cb", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -369,7 +369,7 @@ class IWSLT2017RONL(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "iwslt2017", "iwslt2017-ro-nl", split=split, script_version="master"
+            "iwslt2017", "iwslt2017-ro-nl", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -388,7 +388,7 @@ class IWSLT2017ENNL(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "iwslt2017", "iwslt2017-en-nl", split=split, script_version="master"
+            "iwslt2017", "iwslt2017-en-nl", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -407,7 +407,7 @@ class WMT16ENROTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "wmt16", self.pair, split=split, script_version="master"
+            "wmt16", self.pair, split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -426,7 +426,7 @@ class WMT16ROENTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "wmt16", self.pair, split=split, script_version="master"
+            "wmt16", self.pair, split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -445,7 +445,7 @@ class WMT16ENCSTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "wmt16", self.pair, split=split, script_version="master"
+            "wmt16", self.pair, split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -464,7 +464,7 @@ class WMT16ENFITaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "wmt16", self.pair, split=split, script_version="master"
+            "wmt16", self.pair, split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -483,7 +483,7 @@ class WMT14HIENTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "wmt14", self.pair, split=split, script_version="master"
+            "wmt14", self.pair, split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -502,7 +502,7 @@ class TRECTaskDataset(AbstractTaskDataset):
     metrics = [metrics.accuracy]
 
     def load_dataset(self, split):
-        return datasets.load_dataset("trec", split=split, script_version="master")
+        return datasets.load_dataset("trec", split=split)
 
     def preprocessor(self, example, add_prefix=True):
         src_texts = ["sentence:", example["text"]]
@@ -519,7 +519,7 @@ class YelpPolarityTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "yelp_polarity", split=split, script_version="master"
+            "yelp_polarity", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -540,7 +540,7 @@ class ScitailTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "scitail", "snli_format", split=split, script_version="master"
+            "scitail", "snli_format", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -568,7 +568,7 @@ class MRPCTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "mrpc", split=split, script_version="master"
+            "glue", "mrpc", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -595,7 +595,7 @@ class COLATaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "cola", split=split, script_version="master"
+            "glue", "cola", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -617,7 +617,7 @@ class SST2TaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "sst2", split=split, script_version="master"
+            "glue", "sst2", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -639,7 +639,7 @@ class STSBTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "stsb", split=split, script_version="master"
+            "glue", "stsb", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -666,7 +666,7 @@ class QQPTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "qqp", split=split, script_version="master"
+            "glue", "qqp", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -693,7 +693,7 @@ class MNLITaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "mnli", split=split, script_version="master"
+            "glue", "mnli", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -776,7 +776,7 @@ class QNLITaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "qnli", split=split, script_version="master"
+            "glue", "qnli", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -798,7 +798,7 @@ class RTETaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "rte", split=split, script_version="master"
+            "glue", "rte", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -825,7 +825,7 @@ class WNLITaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "glue", "wnli", split=split, script_version="master"
+            "glue", "wnli", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -911,7 +911,7 @@ class WinograndeTaskDataset(AbstractTaskDataset):
 
     def load_dataset(self, split):
         return datasets.load_dataset(
-            "winogrande", "winogrande_l", split=split, script_version="master"
+            "winogrande", "winogrande_l", split=split
         )
 
     def preprocessor(self, example, add_prefix=True):
@@ -1151,7 +1151,7 @@ class WikiLinguaDataset(AbstractTaskDataset):
 
     def load_dataset(self, split: int):
         return datasets.load_dataset(
-            "gem", self.name, split=split, script_version="master"
+            "gem", self.name, split=split
         )
 
     def preprocessor(self, example, add_prefix=True):

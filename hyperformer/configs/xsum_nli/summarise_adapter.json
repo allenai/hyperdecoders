@@ -2,7 +2,7 @@
     "model_name_or_path": "google/t5-large-lm-adapt",
     "tokenizer_name": "google/t5-large-lm-adapt",
     "learning_rate": 0.0003,
-    "output_dir": "/hyperadapter/summarise_adapter",
+    "output_dir": "summarise_adapter",
     "max_source_length": 512,
     "max_target_length": 128,
     "val_max_target_length": 128,
