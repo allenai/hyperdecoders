@@ -18,10 +18,6 @@ from modeling.adapter_t5 import (
     T5WithAdapterConfig,
     T5ForConditionalGenerationWithAdapter,
 )
-from modeling.adapter_bart import (
-    BartWithAdapterConfig,
-    BartForConditionalGenerationWithAdapter,
-)
 from third_party.trainers import T5Trainer
 from data import AutoTask
 from third_party.utils import TaskCollator, check_output_dir, MrqaTaskCollator
@@ -117,18 +113,10 @@ def main():
     # Set seed
     set_seed(training_args.seed)
 
-    if "bart" in (
-        model_args.config_name
-        if model_args.config_name
-        else model_args.model_name_or_path
-    ):
-        model_class = BartForConditionalGenerationWithAdapter
-        config_class = BartWithAdapterConfig
-    else:
-        from transformers import T5Config, T5ForConditionalGeneration
+    from transformers import T5Config, T5ForConditionalGeneration
 
-        model_class = T5ForConditionalGenerationWithAdapter
-        config_class = T5WithAdapterConfig
+    model_class = T5ForConditionalGenerationWithAdapter
+    config_class = T5WithAdapterConfig
 
     # Load pretrained model and tokenizer
     #
