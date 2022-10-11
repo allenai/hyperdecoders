@@ -1,12 +1,12 @@
-# [Hyperdecoders]((https://arxiv.org/abs/2203.08304))
+# Hyperdecoders
 
-Instance-specific decoders for efficient multi-task adaptation of pretrained language models. By generating adapter parameters based off encoder representations, we are able to more effectively enhance the multi-tasking abilities of the model. Here is an overview of our approach:
+Instance-specific decoders for efficient multi-task adaptation of pretrained language models. By generating adapter parameters based off encoder representations, we are able to more effectively enhance the multi-tasking abilities of the model. [Check out our paper for details!](https://arxiv.org/abs/2203.08304) Here is an overview of our approach:
 
 ![figure describing the hyperdecoders model](figures/mainfig.png)
 
 We evaluate on GLUE, MRQA, and a mixture of summarisation and NLI tasks. Our results training and evaluating on GLUE using T5 v1.1 + LM adapt are as follows:
 
-| Model  | CoLA | SST-2 | STS-B | MRPC | QQP | MNLI | QNLI | RTE | Avg |
+| Model  | CoLA | SST2 | STS-B | MRPC | QQP | MNLI | QNLI | RTE | Avg |
 | -----  | ---- | ----- | ----- | ---- | --- | ---- | ---- | --- | --- |
 |Full Finetuning | **63.6** | 94.8 | 91.6/92.0 | 88.7/91.8 | **92.2/89.5** | 88.6 | 93.3 | 77.5 | 86.3 |
 | Hyperformer | 19.2 | 87.3 | 86.2/85.8 | 73.4/81.3 | 87.0/82.8 | 77.7 | 84.2 | 55.1 | 71.5 |
